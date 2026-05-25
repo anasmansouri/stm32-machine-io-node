@@ -1,20 +1,20 @@
 /* USER CODE BEGIN Header */
 /**
-  ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2026 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
+ ******************************************************************************
+ * @file           : main.c
+ * @brief          : Main program body
+ ******************************************************************************
+ * @attention
+ *
+ * Copyright (c) 2026 STMicroelectronics.
+ * All rights reserved.
+ *
+ * This software is licensed under terms that can be found in the LICENSE file
+ * in the root directory of this software component.
+ * If no LICENSE file comes with this software, it is provided AS-IS.
+ *
+ ******************************************************************************
+ */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
@@ -29,7 +29,10 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+typedef struct
+{
+  char text[32];
+} CommandMessage;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -49,25 +52,26 @@ UART_HandleTypeDef huart2;
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
 const osThreadAttr_t defaultTask_attributes = {
-  .name = "defaultTask",
-  .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
+    .name = "defaultTask",
+    .stack_size = 128 * 4,
+    .priority = (osPriority_t)osPriorityNormal,
 };
 /* Definitions for UartRxTask */
 osThreadId_t UartRxTaskHandle;
 const osThreadAttr_t UartRxTask_attributes = {
-  .name = "UartRxTask",
-  .stack_size = 512 * 4,
-  .priority = (osPriority_t) osPriorityAboveNormal,
+    .name = "UartRxTask",
+    .stack_size = 512 * 4,
+    .priority = (osPriority_t)osPriorityAboveNormal,
 };
 /* Definitions for CommandTask */
 osThreadId_t CommandTaskHandle;
 const osThreadAttr_t CommandTask_attributes = {
-  .name = "CommandTask",
-  .stack_size = 512 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
+    .name = "CommandTask",
+    .stack_size = 512 * 4,
+    .priority = (osPriority_t)osPriorityNormal,
 };
 /* USER CODE BEGIN PV */
+osMessageQueueId_t commandQueueHandle;
 
 /* USER CODE END PV */
 
@@ -90,9 +94,9 @@ void StartCommandTask(void *argument);
 /* USER CODE END 0 */
 
 /**
-  * @brief  The application entry point.
-  * @retval int
-  */
+ * @brief  The application entry point.
+ * @retval int
+ */
 int main(void)
 {
 
@@ -141,6 +145,7 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
+  commandQueueHandle = osMessageQueueNew(8, sizeof(CommandMessage), NULL);
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -173,79 +178,79 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  uint8_t rxBuffer[32] = {0};
-	  uint8_t rx_one_byte[1]={0};
-	  int index=0;
-	  while(1){
-		  HAL_StatusTypeDef status =HAL_UART_Receive(&huart1, rx_one_byte, sizeof(rx_one_byte), HAL_MAX_DELAY);
-		  if(status!=HAL_OK){
-			  continue;
-		  }
-		  if(*rx_one_byte=='\n'){
-			  break;
-		  }
-		  if(*rx_one_byte=='\r'){
-		  	  continue;
-		  }
-		  if(index<sizeof(rxBuffer)-1){
-			  rxBuffer[index]=*rx_one_byte;
-			  index++;
-		  }else{
-			  break;
-		  }
-	  }
-	  rxBuffer[index]='\0';
+    /*  uint8_t rxBuffer[32] = {0};
+      uint8_t rx_one_byte[1]={0};
+      int index=0;
+      while(1){
+        HAL_StatusTypeDef status =HAL_UART_Receive(&huart1, rx_one_byte, sizeof(rx_one_byte), HAL_MAX_DELAY);
+        if(status!=HAL_OK){
+          continue;
+        }
+        if(*rx_one_byte=='\n'){
+          break;
+        }
+        if(*rx_one_byte=='\r'){
+            continue;
+        }
+        if(index<sizeof(rxBuffer)-1){
+          rxBuffer[index]=*rx_one_byte;
+          index++;
+        }else{
+          break;
+        }
+      }
+      rxBuffer[index]='\0';
 
-	  // PERIODIC msg
-	  //char periodic_msg[] = "PERIODIC: TEMP : 19| HUM=60\r\n";
-	  //HAL_UART_Transmit(&huart1, (uint8_t*)periodic_msg, strlen(periodic_msg), HAL_MAX_DELAY);
-	  /////////////////
-	  if (strstr((char*)rxBuffer, "PING") != NULL)
-	  {
-	      char ack[] = "ACK:PING\r\n";
-	      HAL_UART_Transmit(&huart1, (uint8_t*)ack, strlen(ack), HAL_MAX_DELAY);
-	  }
-	  else if (strstr((char*)rxBuffer, "LED_ON") != NULL)
-	  {
-	      char ack[] = "ACK:LED_ON\r\n";
-	      HAL_UART_Transmit(&huart1, (uint8_t*)ack, strlen(ack), HAL_MAX_DELAY);
-	  }
-	  else if (strstr((char*)rxBuffer, "LED_OFF") != NULL)
-	  {
-	      char ack[] = "ACK:LED_OFF\r\n";
-	      HAL_UART_Transmit(&huart1, (uint8_t*)ack, strlen(ack), HAL_MAX_DELAY);
-	  }
-	  else if (strstr((char*)rxBuffer, "GET_STATUS") != NULL)
-	  {
-	  	  char ack[] = "STATUS: TEMP : 19| HUM=60\r\n";
-	  	  HAL_UART_Transmit(&huart1, (uint8_t*)ack, strlen(ack), HAL_MAX_DELAY);
-	  	  }
-	  else
-	  {
-	      char nack[] = "NACK:UNKNOWN_CMD\r\n";
-	      HAL_UART_Transmit(&huart1, (uint8_t*)nack, strlen(nack), HAL_MAX_DELAY);
-	  }
+      // PERIODIC msg
+      //char periodic_msg[] = "PERIODIC: TEMP : 19| HUM=60\r\n";
+      //HAL_UART_Transmit(&huart1, (uint8_t*)periodic_msg, strlen(periodic_msg), HAL_MAX_DELAY);
+      /////////////////
+      if (strstr((char*)rxBuffer, "PING") != NULL)
+      {
+          char ack[] = "ACK:PING\r\n";
+          HAL_UART_Transmit(&huart1, (uint8_t*)ack, strlen(ack), HAL_MAX_DELAY);
+      }
+      else if (strstr((char*)rxBuffer, "LED_ON") != NULL)
+      {
+          char ack[] = "ACK:LED_ON\r\n";
+          HAL_UART_Transmit(&huart1, (uint8_t*)ack, strlen(ack), HAL_MAX_DELAY);
+      }
+      else if (strstr((char*)rxBuffer, "LED_OFF") != NULL)
+      {
+          char ack[] = "ACK:LED_OFF\r\n";
+          HAL_UART_Transmit(&huart1, (uint8_t*)ack, strlen(ack), HAL_MAX_DELAY);
+      }
+      else if (strstr((char*)rxBuffer, "GET_STATUS") != NULL)
+      {
+          char ack[] = "STATUS: TEMP : 19| HUM=60\r\n";
+          HAL_UART_Transmit(&huart1, (uint8_t*)ack, strlen(ack), HAL_MAX_DELAY);
+          }
+      else
+      {
+          char nack[] = "NACK:UNKNOWN_CMD\r\n";
+          HAL_UART_Transmit(&huart1, (uint8_t*)nack, strlen(nack), HAL_MAX_DELAY);
+      }*/
   }
   /* USER CODE END 3 */
 }
 
 /**
-  * @brief System Clock Configuration
-  * @retval None
-  */
+ * @brief System Clock Configuration
+ * @retval None
+ */
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
   /** Configure the main internal regulator output voltage
-  */
+   */
   __HAL_RCC_PWR_CLK_ENABLE();
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE3);
 
   /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
+   * in the RCC_OscInitTypeDef structure.
+   */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
@@ -262,9 +267,8 @@ void SystemClock_Config(void)
   }
 
   /** Initializes the CPU, AHB and APB buses clocks
-  */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+   */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
@@ -277,10 +281,10 @@ void SystemClock_Config(void)
 }
 
 /**
-  * @brief USART1 Initialization Function
-  * @param None
-  * @retval None
-  */
+ * @brief USART1 Initialization Function
+ * @param None
+ * @retval None
+ */
 static void MX_USART1_UART_Init(void)
 {
 
@@ -306,14 +310,13 @@ static void MX_USART1_UART_Init(void)
   /* USER CODE BEGIN USART1_Init 2 */
 
   /* USER CODE END USART1_Init 2 */
-
 }
 
 /**
-  * @brief USART2 Initialization Function
-  * @param None
-  * @retval None
-  */
+ * @brief USART2 Initialization Function
+ * @param None
+ * @retval None
+ */
 static void MX_USART2_UART_Init(void)
 {
 
@@ -339,14 +342,13 @@ static void MX_USART2_UART_Init(void)
   /* USER CODE BEGIN USART2_Init 2 */
 
   /* USER CODE END USART2_Init 2 */
-
 }
 
 /**
-  * @brief GPIO Initialization Function
-  * @param None
-  * @retval None
-  */
+ * @brief GPIO Initialization Function
+ * @param None
+ * @retval None
+ */
 static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
@@ -387,16 +389,16 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN Header_StartDefaultTask */
 /**
-  * @brief  Function implementing the defaultTask thread.
-  * @param  argument: Not used
-  * @retval None
-  */
+ * @brief  Function implementing the defaultTask thread.
+ * @param  argument: Not used
+ * @retval None
+ */
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
   /* Infinite loop */
-  for(;;)
+  for (;;)
   {
     osDelay(1);
   }
@@ -405,48 +407,127 @@ void StartDefaultTask(void *argument)
 
 /* USER CODE BEGIN Header_StartUartRxTask */
 /**
-* @brief Function implementing the UartRxTask thread.
-* @param argument: Not used
-* @retval None
-*/
+ * @brief Function implementing the UartRxTask thread.
+ * @param argument: Not used
+ * @retval None
+ */
 /* USER CODE END Header_StartUartRxTask */
 void StartUartRxTask(void *argument)
 {
   /* USER CODE BEGIN StartUartRxTask */
+  uint8_t rxBuffer[32] = {0};
+  uint8_t rxByte = 0;
+  int index = 0;
   /* Infinite loop */
-  for(;;)
+  for (;;)
   {
-    osDelay(1);
+    HAL_StatusTypeDef status = HAL_UART_Receive(&huart1, &rxByte, 1, 10);
+    if (status != HAL_OK)
+    {
+      osDelay(1);
+      continue;
+    }
+
+    if (rxByte == '\r')
+    {
+      continue;
+    }
+
+
+    if (rxByte == '\n')
+    {
+      rxBuffer[index] = '\0';
+
+      if (index > 0)
+      {
+        CommandMessage msg;
+        memset(&msg, 0, sizeof(msg));
+        strncpy(msg.text, (char *)rxBuffer, sizeof(msg.text) - 1);
+
+        osMessageQueuePut(commandQueueHandle, &msg, 0, 0);
+        osDelay(1);
+      }
+
+      index = 0;
+      memset(rxBuffer, 0, sizeof(rxBuffer));
+      continue;
+    }
+
+    if (index < sizeof(rxBuffer) - 1)
+    {
+      rxBuffer[index] = rxByte;
+      index++;
+    }
+    else
+    {
+      index = 0;
+      memset(rxBuffer, 0, sizeof(rxBuffer));
+    }
   }
   /* USER CODE END StartUartRxTask */
 }
 
 /* USER CODE BEGIN Header_StartCommandTask */
 /**
-* @brief Function implementing the CommandTask thread.
-* @param argument: Not used
-* @retval None
-*/
+ * @brief Function implementing the CommandTask thread.
+ * @param argument: Not used
+ * @retval None
+ */
 /* USER CODE END Header_StartCommandTask */
 void StartCommandTask(void *argument)
 {
   /* USER CODE BEGIN StartCommandTask */
+  //	uint8_t rxBuffer[32] = {"PING"};
+  CommandMessage cmd;
+
   /* Infinite loop */
-  for(;;)
+  for (;;)
   {
-    osDelay(1);
+    osStatus_t status =
+        osMessageQueueGet(commandQueueHandle, &cmd, NULL, osWaitForever);
+
+    if (status != osOK)
+    {
+      continue;
+    }
+    if (strcmp(cmd.text, "PING") == 0)
+    {
+      char ack[] = "ACK:PING\r\n";
+      HAL_UART_Transmit(&huart1, (uint8_t *)ack, strlen(ack), HAL_MAX_DELAY);
+    }
+
+    else if (strcmp(cmd.text, "LED_ON") == 0)
+    {
+      char ack[] = "ACK:LED_ON\r\n";
+      HAL_UART_Transmit(&huart1, (uint8_t *)ack, strlen(ack), HAL_MAX_DELAY);
+    }
+    else if (strcmp(cmd.text, "LED_OFF") == 0)
+    {
+      char ack[] = "ACK:LED_OFF\r\n";
+      HAL_UART_Transmit(&huart1, (uint8_t *)ack, strlen(ack), HAL_MAX_DELAY);
+    }
+    else if (strcmp(cmd.text, "GET_STATUS") == 0)
+    {
+      char statusMsg[] = "STATUS:TEMP=19;HUM=60\r\n";
+      HAL_UART_Transmit(&huart1, (uint8_t *)statusMsg, strlen(statusMsg), HAL_MAX_DELAY);
+    }
+    else
+    {
+      char nack[] = "NACK:UNKNOWN_CMD\r\n";
+      HAL_UART_Transmit(&huart1, (uint8_t *)nack, strlen(nack), HAL_MAX_DELAY);
+    }
   }
   /* USER CODE END StartCommandTask */
 }
 
 /**
-  * @brief  Period elapsed callback in non blocking mode
-  * @note   This function is called  when TIM6 interrupt took place, inside
-  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
-  * a global variable "uwTick" used as application time base.
-  * @param  htim : TIM handle
-  * @retval None
-  */
+ * @brief  Period elapsed callback in non blocking mode
+ * @note   This function is called  when TIM6 interrupt took place, inside
+ * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+ * a global variable "uwTick" used as application time base.
+ * @param  htim : TIM handle
+ * @retval None
+ */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
@@ -462,9 +543,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 }
 
 /**
-  * @brief  This function is executed in case of error occurrence.
-  * @retval None
-  */
+ * @brief  This function is executed in case of error occurrence.
+ * @retval None
+ */
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
@@ -477,12 +558,12 @@ void Error_Handler(void)
 }
 #ifdef USE_FULL_ASSERT
 /**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
+ * @brief  Reports the name of the source file and the source line number
+ *         where the assert_param error has occurred.
+ * @param  file: pointer to the source file name
+ * @param  line: assert_param error line source number
+ * @retval None
+ */
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
