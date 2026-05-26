@@ -446,6 +446,9 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10|GPIO_PIN_4|GPIO_PIN_5, GPIO_PIN_RESET);
+
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
@@ -459,13 +462,47 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pins : PB10 PB4 PB5 */
+  GPIO_InitStruct.Pin = GPIO_PIN_10|GPIO_PIN_4|GPIO_PIN_5;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
   /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
+/* USER CODE BEGIN 4 */
 
+static void StatusLed_AllOff(void)
+{
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_RESET);   // Yellow
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET);   // Green
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_RESET);  // Red
+}
+
+static void StatusLed_Green(void)
+{
+    StatusLed_AllOff();
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);    	// Green
+}
+
+static void StatusLed_Yellow(void)
+{
+    StatusLed_AllOff();
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_SET);   	// Yellow
+}
+
+static void StatusLed_Red(void)
+{
+    StatusLed_AllOff();
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_SET);   // Red
+}
+
+/* USER CODE END 4 */
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -576,14 +613,28 @@ void StartCommandTask(void *argument)
       HAL_UART_Transmit(&huart1, (uint8_t *)ack, strlen(ack), HAL_MAX_DELAY);
     }
 
-    else if (strcmp(cmd.text, "LED_ON") == 0)
+    else if (strcmp(cmd.text, "SET_LED:RED") == 0)
     {
-      char ack[] = "ACK:LED_ON\r\n";
+      char ack[] = "ACK:SET_LED:RED\r\n";
+      StatusLed_Red();
       HAL_UART_Transmit(&huart1, (uint8_t *)ack, strlen(ack), HAL_MAX_DELAY);
     }
-    else if (strcmp(cmd.text, "LED_OFF") == 0)
+    else if (strcmp(cmd.text, "SET_LED:GREEN") == 0)
     {
-      char ack[] = "ACK:LED_OFF\r\n";
+      char ack[] = "ACK:SET_LED:GREEN\r\n";
+      StatusLed_Green();
+      HAL_UART_Transmit(&huart1, (uint8_t *)ack, strlen(ack), HAL_MAX_DELAY);
+    }
+    else if (strcmp(cmd.text, "SET_LED:YELLOW") == 0)
+    {
+      char ack[] = "ACK:SET_LED:YELLOW\r\n";
+      StatusLed_Yellow();
+      HAL_UART_Transmit(&huart1, (uint8_t *)ack, strlen(ack), HAL_MAX_DELAY);
+    }
+    else if (strcmp(cmd.text, "SET_LED:OFF") == 0)
+    {
+      char ack[] = "ACK:SET_LED:OFF\r\n";
+      StatusLed_AllOff();
       HAL_UART_Transmit(&huart1, (uint8_t *)ack, strlen(ack), HAL_MAX_DELAY);
     }
     else if (strcmp(cmd.text, "GET_STATUS") == 0)
@@ -636,7 +687,7 @@ void StartTelemetryTask(void *argument)
       if(latestTelemetry.temperature>=50){
     	  latestTelemetry.temperature=0;
       }
-    osDelay(1000);
+    osDelay(100);
   }
   /* USER CODE END StartTelemetryTask */
 }
