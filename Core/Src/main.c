@@ -25,6 +25,8 @@
 
 #include <string.h>
 #include <stdio.h>
+#include "FreeRTOS.h"
+#include "task.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -44,7 +46,8 @@ typedef struct
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define DHT11_PORT GPIOB
+#define DHT11_PIN  GPIO_PIN_6
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -93,6 +96,7 @@ TelemetryData latestTelemetry = {
     .humidity = 60,
 	.load =0
 };
+int dht11LastResult = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -106,8 +110,14 @@ void StartUartRxTask(void *argument);
 void StartCommandTask(void *argument);
 void StartTelemetryTask(void *argument);
 
-/* USER CODE BEGIN PFP */
 
+/* USER CODE BEGIN PFP */
+static void DWT_Delay_Init(void);
+static void delay_us(uint32_t us);
+static void DHT11_SetPinOutput(void);
+static void DHT11_SetPinInput(void);
+static int DHT11_WaitForState(GPIO_PinState state, uint32_t timeout_us);
+static int DHT11_Read(int *temperature, int *humidity);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -148,7 +158,7 @@ int main(void)
   MX_USART1_UART_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
-
+  DWT_Delay_Init();
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -204,58 +214,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    /*  uint8_t rxBuffer[32] = {0};
-      uint8_t rx_one_byte[1]={0};
-      int index=0;
-      while(1){
-        HAL_StatusTypeDef status =HAL_UART_Receive(&huart1, rx_one_byte, sizeof(rx_one_byte), HAL_MAX_DELAY);
-        if(status!=HAL_OK){
-          continue;
-        }
-        if(*rx_one_byte=='\n'){
-          break;
-        }
-        if(*rx_one_byte=='\r'){
-            continue;
-        }
-        if(index<sizeof(rxBuffer)-1){
-          rxBuffer[index]=*rx_one_byte;
-          index++;
-        }else{
-          break;
-        }
-      }
-      rxBuffer[index]='\0';
 
-      // PERIODIC msg
-      //char periodic_msg[] = "PERIODIC: TEMP : 19| HUM=60\r\n";
-      //HAL_UART_Transmit(&huart1, (uint8_t*)periodic_msg, strlen(periodic_msg), HAL_MAX_DELAY);
-      /////////////////
-      if (strstr((char*)rxBuffer, "PING") != NULL)
-      {
-          char ack[] = "ACK:PING\r\n";
-          HAL_UART_Transmit(&huart1, (uint8_t*)ack, strlen(ack), HAL_MAX_DELAY);
-      }
-      else if (strstr((char*)rxBuffer, "LED_ON") != NULL)
-      {
-          char ack[] = "ACK:LED_ON\r\n";
-          HAL_UART_Transmit(&huart1, (uint8_t*)ack, strlen(ack), HAL_MAX_DELAY);
-      }
-      else if (strstr((char*)rxBuffer, "LED_OFF") != NULL)
-      {
-          char ack[] = "ACK:LED_OFF\r\n";
-          HAL_UART_Transmit(&huart1, (uint8_t*)ack, strlen(ack), HAL_MAX_DELAY);
-      }
-      else if (strstr((char*)rxBuffer, "GET_STATUS") != NULL)
-      {
-          char ack[] = "STATUS: TEMP : 19| HUM=60\r\n";
-          HAL_UART_Transmit(&huart1, (uint8_t*)ack, strlen(ack), HAL_MAX_DELAY);
-          }
-      else
-      {
-          char nack[] = "NACK:UNKNOWN_CMD\r\n";
-          HAL_UART_Transmit(&huart1, (uint8_t*)nack, strlen(nack), HAL_MAX_DELAY);
-      }*/
   }
   /* USER CODE END 3 */
 }
@@ -449,6 +408,9 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10|GPIO_PIN_4|GPIO_PIN_5, GPIO_PIN_RESET);
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, GPIO_PIN_SET);
+
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
@@ -462,8 +424,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PB10 PB4 PB5 */
-  GPIO_InitStruct.Pin = GPIO_PIN_10|GPIO_PIN_4|GPIO_PIN_5;
+  /*Configure GPIO pins : PB10 PB4 PB5 PB6 */
+  GPIO_InitStruct.Pin = GPIO_PIN_10|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -475,7 +437,142 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-/* USER CODE BEGIN 4 */
+static void DHT11_SetPinOutput(void)
+{
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+    GPIO_InitStruct.Pin = DHT11_PIN;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+    GPIO_InitStruct.Pull = GPIO_PULLUP;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+
+    HAL_GPIO_Init(DHT11_PORT, &GPIO_InitStruct);
+}
+
+static void DHT11_SetPinInput(void)
+{
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+    GPIO_InitStruct.Pin = DHT11_PIN;
+    GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+    GPIO_InitStruct.Pull = GPIO_PULLUP;
+
+    HAL_GPIO_Init(DHT11_PORT, &GPIO_InitStruct);
+}
+
+static void DWT_Delay_Init(void)
+{
+    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+    DWT->CYCCNT = 0;
+    DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+}
+
+static void delay_us(uint32_t us)
+{
+    uint32_t start = DWT->CYCCNT;
+    uint32_t ticks = us * (SystemCoreClock / 1000000);
+
+    while ((DWT->CYCCNT - start) < ticks)
+    {
+    }
+}
+
+static int DHT11_WaitForState(GPIO_PinState state, uint32_t timeout_us)
+{
+    while (HAL_GPIO_ReadPin(DHT11_PORT, DHT11_PIN) != state)
+    {
+        if (timeout_us-- == 0)
+        {
+            return 0;
+        }
+
+        delay_us(1);
+    }
+
+    return 1;
+}
+
+static int DHT11_Read(int *temperature, int *humidity)
+{
+    uint8_t data[5] = {0};
+
+    DHT11_SetPinInput();
+
+    if (HAL_GPIO_ReadPin(DHT11_PORT, DHT11_PIN) != GPIO_PIN_SET)
+    {
+        return -10;  // line is not idle high
+    }
+
+    DHT11_SetPinOutput();
+
+    HAL_GPIO_WritePin(DHT11_PORT, DHT11_PIN, GPIO_PIN_RESET);
+    HAL_Delay(20);
+
+    /*
+     * Critical timing starts here.
+     * no HAL_Delay() is allowed in this section.
+     */
+    taskENTER_CRITICAL();
+
+    HAL_GPIO_WritePin(DHT11_PORT, DHT11_PIN, GPIO_PIN_SET);
+    delay_us(20);
+
+    DHT11_SetPinInput();
+
+    if (!DHT11_WaitForState(GPIO_PIN_RESET, 500))
+    {
+        taskEXIT_CRITICAL();
+        return -1;
+    }
+
+    if (!DHT11_WaitForState(GPIO_PIN_SET, 500))
+    {
+        taskEXIT_CRITICAL();
+        return -2;
+    }
+
+    if (!DHT11_WaitForState(GPIO_PIN_RESET, 500))
+    {
+        taskEXIT_CRITICAL();
+        return -3;
+    }
+
+    for (int i = 0; i < 40; i++)
+    {
+        if (!DHT11_WaitForState(GPIO_PIN_SET, 300))
+        {
+            taskEXIT_CRITICAL();
+            return -4;
+        }
+
+        delay_us(40);
+
+        if (HAL_GPIO_ReadPin(DHT11_PORT, DHT11_PIN) == GPIO_PIN_SET)
+        {
+            data[i / 8] |= (1 << (7 - (i % 8)));
+
+            if (!DHT11_WaitForState(GPIO_PIN_RESET, 300))
+            {
+                taskEXIT_CRITICAL();
+                return -5;
+            }
+        }
+    }
+
+    taskEXIT_CRITICAL();
+
+    uint8_t checksum = data[0] + data[1] + data[2] + data[3];
+
+    if (checksum != data[4])
+    {
+        return -6;
+    }
+
+    *humidity = data[0];
+    *temperature = data[2];
+
+    return 1;
+}
 
 static void StatusLed_AllOff(void)
 {
@@ -502,7 +599,6 @@ static void StatusLed_Red(void)
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_SET);   // Red
 }
 
-/* USER CODE END 4 */
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -639,8 +735,13 @@ void StartCommandTask(void *argument)
     }
     else if (strcmp(cmd.text, "GET_STATUS") == 0)
     {
-      char statusMsg[50];
-      snprintf(statusMsg,sizeof(statusMsg),"STATUS:TEMP=%d;HUM=%d;LOAD=%d\r\n",latestTelemetry.temperature,latestTelemetry.humidity,latestTelemetry.load);
+      char statusMsg[80];
+      snprintf(statusMsg,
+               sizeof(statusMsg),
+               "STATUS:TEMP=%d;HUM=%d;LOAD=%d\r\n",
+               latestTelemetry.temperature,
+               latestTelemetry.humidity,
+               latestTelemetry.load);
       HAL_UART_Transmit(&huart1, (uint8_t *)statusMsg, strlen(statusMsg), HAL_MAX_DELAY);
     }
     else
@@ -662,33 +763,43 @@ void StartCommandTask(void *argument)
 void StartTelemetryTask(void *argument)
 {
   /* USER CODE BEGIN StartTelemetryTask */
-  /* Infinite loop */
+
+  uint32_t dhtCounterMs = 0;
+
   for(;;)
   {
+      HAL_ADC_Start(&hadc1);
 
-	  HAL_ADC_Start(&hadc1);
-
-	  if (HAL_ADC_PollForConversion(&hadc1, 10) == HAL_OK)
-	  {
-		  uint32_t adcRaw = HAL_ADC_GetValue(&hadc1);
-
-	      latestTelemetry.load = (adcRaw * 100) / 4095;
-	  }
-
-	  HAL_ADC_Stop(&hadc1);
-
-
-
-	  latestTelemetry.humidity++;
-	  latestTelemetry.temperature++;
-      if(latestTelemetry.humidity>=100){
-    	  latestTelemetry.humidity=0;
+      if (HAL_ADC_PollForConversion(&hadc1, 10) == HAL_OK)
+      {
+          uint32_t adcRaw = HAL_ADC_GetValue(&hadc1);
+          latestTelemetry.load = (adcRaw * 100) / 4095;
       }
-      if(latestTelemetry.temperature>=50){
-    	  latestTelemetry.temperature=0;
+
+      HAL_ADC_Stop(&hadc1);
+
+      dhtCounterMs += 100;
+
+      if (dhtCounterMs >= 2000)
+      {
+          int temp = 0;
+          int hum = 0;
+
+          int result = DHT11_Read(&temp, &hum);
+          dht11LastResult = result;
+
+          if (result == 1)
+          {
+              latestTelemetry.temperature = temp;
+              latestTelemetry.humidity = hum;
+          }
+
+          dhtCounterMs = 0;
       }
-    osDelay(100);
+
+      osDelay(100);
   }
+
   /* USER CODE END StartTelemetryTask */
 }
 
