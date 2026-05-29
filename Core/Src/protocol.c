@@ -42,7 +42,6 @@ void Protocol_HandleCommand(const char *cmd,
 	    }
 	    else if (strcmp(cmd, "GET_STATUS") == 0)
 	    {
-
 	    	snprintf(response,
 	               responseSize,
 	               "STATUS:TEMP=%d;HUM=%d;LOAD=%d;DHT_STATUS=%s;LOAD_STATUS=%s;SYSTEM_STATUS=%s\r\n",
