@@ -27,8 +27,8 @@
 #include <stdio.h>
 #include "telemetry_data.h"
 #include "dht11.h"
-#include "status_led.h"
 #include "protocol.h"
+#include "load_sensor.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -535,7 +535,7 @@ void StartCommandTask(void *argument)
       continue;
     }
     TelemetryData telemetry_data ={0};
-    char response[50];
+    char response[80];
     status = osMutexAcquire(telemetryMutex, osWaitForever);
     if(status==osOK){
     	telemetry_data=latestTelemetry;
@@ -566,21 +566,14 @@ void StartTelemetryTask(void *argument)
 
   for(;;)
   {
-      HAL_ADC_Start(&hadc1);
-
-      if (HAL_ADC_PollForConversion(&hadc1, 10) == HAL_OK)
-      {
-
-          uint32_t adcRaw = HAL_ADC_GetValue(&hadc1);
-          osStatus_t status = osMutexAcquire(telemetryMutex, osWaitForever);
-          if(status==osOK){
-        	  latestTelemetry.load = (adcRaw * 100) / 4095;
-              osMutexRelease(telemetryMutex);
-          }
-
-      }
-
-      HAL_ADC_Stop(&hadc1);
+	  int load = LoadSensor_ReadPercent(&hadc1);
+	  if(load>=0){
+		  osStatus_t status = osMutexAcquire(telemetryMutex, osWaitForever);
+		  	  if(status==osOK){
+		  		  latestTelemetry.load=load;
+		  		  osMutexRelease(telemetryMutex);
+		  	  }
+	  }
 
       dhtCounterMs += 100;
 
@@ -593,7 +586,7 @@ void StartTelemetryTask(void *argument)
 
           if (result == 1)
           {
-        	  osStatus_t status = osMutexAcquire(telemetryMutex, osWaitForever);
+        	  status = osMutexAcquire(telemetryMutex, osWaitForever);
         	  if(status==osOK){
         		  latestTelemetry.temperature = temp;
         		  latestTelemetry.humidity = hum;
