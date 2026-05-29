@@ -97,6 +97,8 @@ TelemetryData latestTelemetry = {
     .humidity = 60,
 	.load =0
 };
+osMutexId_t telemetryMutex;
+TelemetryData telemetry_data_to_be_sent;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -161,6 +163,7 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
+  telemetryMutex = osMutexNew(NULL);
   /* USER CODE END RTOS_MUTEX */
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
@@ -570,12 +573,17 @@ void StartCommandTask(void *argument)
     else if (strcmp(cmd.text, "GET_STATUS") == 0)
     {
       char statusMsg[80];
+      osStatus_t status = osMutexAcquire(telemetryMutex, osWaitForever);
+      if(status==osOK){
+    	  telemetry_data_to_be_sent = latestTelemetry;
+          osMutexRelease(telemetryMutex);
+      }
       snprintf(statusMsg,
                sizeof(statusMsg),
                "STATUS:TEMP=%d;HUM=%d;LOAD=%d\r\n",
-               latestTelemetry.temperature,
-               latestTelemetry.humidity,
-               latestTelemetry.load);
+			   telemetry_data_to_be_sent.temperature,
+			   telemetry_data_to_be_sent.humidity,
+			   telemetry_data_to_be_sent.load);
       HAL_UART_Transmit(&huart1, (uint8_t *)statusMsg, strlen(statusMsg), HAL_MAX_DELAY);
     }
     else
@@ -606,8 +614,14 @@ void StartTelemetryTask(void *argument)
 
       if (HAL_ADC_PollForConversion(&hadc1, 10) == HAL_OK)
       {
+
           uint32_t adcRaw = HAL_ADC_GetValue(&hadc1);
-          latestTelemetry.load = (adcRaw * 100) / 4095;
+          osStatus_t status = osMutexAcquire(telemetryMutex, osWaitForever);
+          if(status==osOK){
+        	  latestTelemetry.load = (adcRaw * 100) / 4095;
+              osMutexRelease(telemetryMutex);
+          }
+
       }
 
       HAL_ADC_Stop(&hadc1);
@@ -623,8 +637,13 @@ void StartTelemetryTask(void *argument)
 
           if (result == 1)
           {
-              latestTelemetry.temperature = temp;
-              latestTelemetry.humidity = hum;
+        	  osStatus_t status = osMutexAcquire(telemetryMutex, osWaitForever);
+        	  if(status==osOK){
+        		  latestTelemetry.temperature = temp;
+        		  latestTelemetry.humidity = hum;
+        		  osMutexRelease(telemetryMutex);
+        	  }
+
           }
 
           dhtCounterMs = 0;
