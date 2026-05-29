@@ -566,13 +566,14 @@ void StartTelemetryTask(void *argument)
 
   for(;;)
   {
+	  osStatus_t status;
 	  int load = LoadSensor_ReadPercent(&hadc1);
 	  if(load>=0){
-		  osStatus_t status = osMutexAcquire(telemetryMutex, osWaitForever);
-		  	  if(status==osOK){
-		  		  latestTelemetry.load=load;
-		  		  osMutexRelease(telemetryMutex);
-		  	  }
+		  status = osMutexAcquire(telemetryMutex, osWaitForever);
+		  if(status==osOK){
+			  latestTelemetry.load=load;
+			  osMutexRelease(telemetryMutex);
+		  }
 	  }
 
       dhtCounterMs += 100;

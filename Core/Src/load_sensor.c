@@ -5,7 +5,7 @@
  *      Author: anas
  */
 #include "load_sensor.h"
-int loadSensor_ReadPercent(ADC_HandleTypeDef *hadc){
+int LoadSensor_ReadPercent(ADC_HandleTypeDef *hadc){
 
 	HAL_ADC_Start(hadc);
 	int load=-1;
