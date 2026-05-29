@@ -1,0 +1,4 @@
+../Core/Src/status_led.c:10:6:StatusLed_AllOff	1
+../Core/Src/status_led.c:17:6:StatusLed_Green	1
+../Core/Src/status_led.c:23:6:StatusLed_Yellow	1
+../Core/Src/status_led.c:29:6:StatusLed_Red	1

@@ -26,6 +26,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "dht11.h"
+#include "status_led.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -96,7 +97,6 @@ TelemetryData latestTelemetry = {
     .humidity = 60,
 	.load =0
 };
-int dht11LastResult = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -433,33 +433,6 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-
-
-static void StatusLed_AllOff(void)
-{
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_RESET);   // Yellow
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET);   // Green
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_RESET);  // Red
-}
-
-static void StatusLed_Green(void)
-{
-    StatusLed_AllOff();
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);    	// Green
-}
-
-static void StatusLed_Yellow(void)
-{
-    StatusLed_AllOff();
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_SET);   	// Yellow
-}
-
-static void StatusLed_Red(void)
-{
-    StatusLed_AllOff();
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_SET);   // Red
-}
-
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -647,7 +620,6 @@ void StartTelemetryTask(void *argument)
           int hum = 0;
 
           int result = DHT11_Read(&temp, &hum);
-          dht11LastResult = result;
 
           if (result == 1)
           {
