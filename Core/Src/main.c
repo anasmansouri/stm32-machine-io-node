@@ -90,7 +90,10 @@ osMessageQueueId_t commandQueueHandle;
 TelemetryData latestTelemetry = {
     .temperature = 19,
     .humidity = 60,
-	.load =0
+	.load =0,
+	.dhtStatus=DHT_OK,
+	.loadStatus=LOAD_OK,
+	.systemStatus=SYSTEM_OK
 };
 osMutexId_t telemetryMutex;
 /* USER CODE END PV */
@@ -535,7 +538,7 @@ void StartCommandTask(void *argument)
       continue;
     }
     TelemetryData telemetry_data ={0};
-    char response[80];
+    char response[128];
     status = osMutexAcquire(telemetryMutex, osWaitForever);
     if(status==osOK){
     	telemetry_data=latestTelemetry;
@@ -572,8 +575,11 @@ void StartTelemetryTask(void *argument)
 		  status = osMutexAcquire(telemetryMutex, osWaitForever);
 		  if(status==osOK){
 			  latestTelemetry.load=load;
+			  latestTelemetry.loadStatus=LOAD_OK;
 			  osMutexRelease(telemetryMutex);
 		  }
+	  }else{
+		  latestTelemetry.loadStatus=LOAD_ADC_ERROR;
 	  }
 
       dhtCounterMs += 100;
@@ -591,14 +597,27 @@ void StartTelemetryTask(void *argument)
         	  if(status==osOK){
         		  latestTelemetry.temperature = temp;
         		  latestTelemetry.humidity = hum;
+        		  latestTelemetry.dhtStatus=DHT_OK;
         		  osMutexRelease(telemetryMutex);
         	  }
 
+          }else{
+        	  latestTelemetry.dhtStatus=DHT_ERROR;
           }
 
           dhtCounterMs = 0;
       }
+      status = osMutexAcquire(telemetryMutex, osWaitForever);
+      if(status==osOK){
 
+    	  if(latestTelemetry.loadStatus==LOAD_OK && latestTelemetry.dhtStatus==DHT_OK){
+    		  latestTelemetry.systemStatus=SYSTEM_OK;
+    	  }else if(latestTelemetry.loadStatus!=LOAD_OK && latestTelemetry.dhtStatus!=DHT_OK){
+    		  latestTelemetry.systemStatus=SYSTEM_WARNING;
+    	  }else{
+    		  latestTelemetry.systemStatus=SYSTEM_ERROR;
+    	  }
+      }
       osDelay(100);
   }
 

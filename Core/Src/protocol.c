@@ -41,12 +41,17 @@ void Protocol_HandleCommand(const char *cmd,
 	    }
 	    else if (strcmp(cmd, "GET_STATUS") == 0)
 	    {
-	      snprintf(response,
+
+	    	snprintf(response,
 	               responseSize,
-	               "STATUS:TEMP=%d;HUM=%d;LOAD=%d\r\n",
+	               "STATUS:TEMP=%d;HUM=%d;LOAD=%d;DHTSTATUS=%s;LOAD_STATUS=%s;SYSTEM_STATUS=%s\r\n",
 				   telemetry->temperature,
 				   telemetry->humidity,
-				   telemetry->load);
+				   telemetry->load,
+				   dht_status_to_string(telemetry->dhtStatus),
+				   load_status_to_string(telemetry->loadStatus),
+				   system_status_to_string(telemetry->systemStatus)
+				   );
 	    }
 	    else
 	    {

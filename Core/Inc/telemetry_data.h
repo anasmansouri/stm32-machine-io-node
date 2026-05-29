@@ -8,11 +8,38 @@
 #ifndef INC_TELEMETRY_DATA_H_
 #define INC_TELEMETRY_DATA_H_
 
+typedef enum {
+    DHT_OK,
+	DHT_ERROR
+} DhtStatus_t;
+
+typedef enum {
+	LOAD_OK,
+	LOAD_ADC_ERROR
+} LoadStatus_t;
+
+typedef enum {
+	SYSTEM_OK,
+	SYSTEM_WARNING,
+	SYSTEM_ERROR
+} SystemStatus_t;
+
+
 typedef struct
 {
 	int temperature;
 	int humidity;
 	int load;
+	DhtStatus_t dhtStatus;
+	LoadStatus_t loadStatus;
+	SystemStatus_t systemStatus;
 } TelemetryData;
 
+
+
+const char* dht_status_to_string(DhtStatus_t status);
+
+const char* load_status_to_string(LoadStatus_t status);
+
+const char* system_status_to_string(SystemStatus_t status);
 #endif /* INC_TELEMETRY_DATA_H_ */
