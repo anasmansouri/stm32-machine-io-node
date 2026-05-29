@@ -25,8 +25,10 @@
 
 #include <string.h>
 #include <stdio.h>
+#include "telemetry_data.h"
 #include "dht11.h"
 #include "status_led.h"
+#include "protocol.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -35,13 +37,6 @@ typedef struct
 {
   char text[32];
 } CommandMessage;
-
-typedef struct
-{
-	int temperature;
-	int humidity;
-	int load;
-} TelemetryData;
 
 
 /* USER CODE END PTD */
@@ -98,7 +93,6 @@ TelemetryData latestTelemetry = {
 	.load =0
 };
 osMutexId_t telemetryMutex;
-TelemetryData telemetry_data_to_be_sent;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -540,57 +534,19 @@ void StartCommandTask(void *argument)
     {
       continue;
     }
-    if (strcmp(cmd.text, "PING") == 0)
-    {
-      char ack[] = "ACK:PING\r\n";
-      HAL_UART_Transmit(&huart1, (uint8_t *)ack, strlen(ack), HAL_MAX_DELAY);
+    TelemetryData telemetry_data ={0};
+    char response[50];
+    status = osMutexAcquire(telemetryMutex, osWaitForever);
+    if(status==osOK){
+    	telemetry_data=latestTelemetry;
+        osMutexRelease(telemetryMutex);
     }
 
-    else if (strcmp(cmd.text, "SET_LED:RED") == 0)
-    {
-      char ack[] = "ACK:SET_LED:RED\r\n";
-      StatusLed_Red();
-      HAL_UART_Transmit(&huart1, (uint8_t *)ack, strlen(ack), HAL_MAX_DELAY);
-    }
-    else if (strcmp(cmd.text, "SET_LED:GREEN") == 0)
-    {
-      char ack[] = "ACK:SET_LED:GREEN\r\n";
-      StatusLed_Green();
-      HAL_UART_Transmit(&huart1, (uint8_t *)ack, strlen(ack), HAL_MAX_DELAY);
-    }
-    else if (strcmp(cmd.text, "SET_LED:YELLOW") == 0)
-    {
-      char ack[] = "ACK:SET_LED:YELLOW\r\n";
-      StatusLed_Yellow();
-      HAL_UART_Transmit(&huart1, (uint8_t *)ack, strlen(ack), HAL_MAX_DELAY);
-    }
-    else if (strcmp(cmd.text, "SET_LED:OFF") == 0)
-    {
-      char ack[] = "ACK:SET_LED:OFF\r\n";
-      StatusLed_AllOff();
-      HAL_UART_Transmit(&huart1, (uint8_t *)ack, strlen(ack), HAL_MAX_DELAY);
-    }
-    else if (strcmp(cmd.text, "GET_STATUS") == 0)
-    {
-      char statusMsg[80];
-      osStatus_t status = osMutexAcquire(telemetryMutex, osWaitForever);
-      if(status==osOK){
-    	  telemetry_data_to_be_sent = latestTelemetry;
-          osMutexRelease(telemetryMutex);
-      }
-      snprintf(statusMsg,
-               sizeof(statusMsg),
-               "STATUS:TEMP=%d;HUM=%d;LOAD=%d\r\n",
-			   telemetry_data_to_be_sent.temperature,
-			   telemetry_data_to_be_sent.humidity,
-			   telemetry_data_to_be_sent.load);
-      HAL_UART_Transmit(&huart1, (uint8_t *)statusMsg, strlen(statusMsg), HAL_MAX_DELAY);
-    }
-    else
-    {
-      char nack[] = "NACK:UNKNOWN_CMD\r\n";
-      HAL_UART_Transmit(&huart1, (uint8_t *)nack, strlen(nack), HAL_MAX_DELAY);
-    }
+    Protocol_HandleCommand(cmd.text,
+    					   &telemetry_data,
+                           response,
+						   50);
+    HAL_UART_Transmit(&huart1, (uint8_t *)response, strlen(response), HAL_MAX_DELAY);
   }
   /* USER CODE END StartCommandTask */
 }
