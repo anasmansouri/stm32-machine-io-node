@@ -8,5 +8,5 @@
 ../Core/Src/main.c:463:6:StartUartRxTask	6
 ../Core/Src/main.c:525:6:StartCommandTask	3
 ../Core/Src/main.c:564:6:StartTelemetryTask	11
-../Core/Src/main.c:635:6:HAL_TIM_PeriodElapsedCallback	2
-../Core/Src/main.c:653:6:Error_Handler	1
+../Core/Src/main.c:632:6:HAL_TIM_PeriodElapsedCallback	2
+../Core/Src/main.c:650:6:Error_Handler	1

@@ -7,7 +7,8 @@
 
 #include "protocol.h"
 #include "status_led.h"
-
+#include "string.h"
+#include "stdio.h"
 void Protocol_HandleCommand(const char *cmd,
                             const TelemetryData *telemetry,
                             char *response,
@@ -44,7 +45,7 @@ void Protocol_HandleCommand(const char *cmd,
 
 	    	snprintf(response,
 	               responseSize,
-	               "STATUS:TEMP=%d;HUM=%d;LOAD=%d;DHTSTATUS=%s;LOAD_STATUS=%s;SYSTEM_STATUS=%s\r\n",
+	               "STATUS:TEMP=%d;HUM=%d;LOAD=%d;DHT_STATUS=%s;LOAD_STATUS=%s;SYSTEM_STATUS=%s\r\n",
 				   telemetry->temperature,
 				   telemetry->humidity,
 				   telemetry->load,

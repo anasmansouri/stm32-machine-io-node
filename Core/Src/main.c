@@ -538,7 +538,7 @@ void StartCommandTask(void *argument)
       continue;
     }
     TelemetryData telemetry_data ={0};
-    char response[128];
+    char response[128]={0};
     status = osMutexAcquire(telemetryMutex, osWaitForever);
     if(status==osOK){
     	telemetry_data=latestTelemetry;
@@ -548,7 +548,7 @@ void StartCommandTask(void *argument)
     Protocol_HandleCommand(cmd.text,
     					   &telemetry_data,
                            response,
-						   50);
+						   sizeof(response));
     HAL_UART_Transmit(&huart1, (uint8_t *)response, strlen(response), HAL_MAX_DELAY);
   }
   /* USER CODE END StartCommandTask */
@@ -571,15 +571,15 @@ void StartTelemetryTask(void *argument)
   {
 	  osStatus_t status;
 	  int load = LoadSensor_ReadPercent(&hadc1);
-	  if(load>=0){
-		  status = osMutexAcquire(telemetryMutex, osWaitForever);
-		  if(status==osOK){
+	  status = osMutexAcquire(telemetryMutex, osWaitForever);
+	  if(status==osOK){
+		  if(load>=0){
 			  latestTelemetry.load=load;
 			  latestTelemetry.loadStatus=LOAD_OK;
-			  osMutexRelease(telemetryMutex);
+		  }else{
+			  latestTelemetry.loadStatus=LOAD_ADC_ERROR;
 		  }
-	  }else{
-		  latestTelemetry.loadStatus=LOAD_ADC_ERROR;
+		  osMutexRelease(telemetryMutex);
 	  }
 
       dhtCounterMs += 100;
@@ -590,36 +590,33 @@ void StartTelemetryTask(void *argument)
           int hum = 0;
 
           int result = DHT11_Read(&temp, &hum);
-
-          if (result == 1)
-          {
-        	  status = osMutexAcquire(telemetryMutex, osWaitForever);
-        	  if(status==osOK){
+          status = osMutexAcquire(telemetryMutex, osWaitForever);
+          if(status==osOK){
+        	  if(result==1){
         		  latestTelemetry.temperature = temp;
         		  latestTelemetry.humidity = hum;
         		  latestTelemetry.dhtStatus=DHT_OK;
-        		  osMutexRelease(telemetryMutex);
+        	  }else{
+        		  latestTelemetry.dhtStatus=DHT_ERROR;
         	  }
-
-          }else{
-        	  latestTelemetry.dhtStatus=DHT_ERROR;
+        	  osMutexRelease(telemetryMutex);
           }
-
           dhtCounterMs = 0;
       }
       status = osMutexAcquire(telemetryMutex, osWaitForever);
       if(status==osOK){
-
     	  if(latestTelemetry.loadStatus==LOAD_OK && latestTelemetry.dhtStatus==DHT_OK){
     		  latestTelemetry.systemStatus=SYSTEM_OK;
-    	  }else if(latestTelemetry.loadStatus!=LOAD_OK && latestTelemetry.dhtStatus!=DHT_OK){
-    		  latestTelemetry.systemStatus=SYSTEM_WARNING;
-    	  }else{
+    	  }else if(latestTelemetry.loadStatus==LOAD_ADC_ERROR && latestTelemetry.dhtStatus==DHT_ERROR){
     		  latestTelemetry.systemStatus=SYSTEM_ERROR;
+    	  }else{
+    		  latestTelemetry.systemStatus=SYSTEM_WARNING;
     	  }
+    	  osMutexRelease(telemetryMutex);
       }
       osDelay(100);
   }
+
 
   /* USER CODE END StartTelemetryTask */
 }
