@@ -153,6 +153,7 @@ int main(void)
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
   DHT11_Init();
+  Machine_ApplyStateOutputs(machine_state);
   /* USER CODE END 2 */
 
   /* Init scheduler */

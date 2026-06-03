@@ -7,6 +7,7 @@
 
 #include "machine_state.h"
 #include <stddef.h>
+#include "status_led.h"
 
 /* Default load thresholds */
 static int loadWarningThreshold = 75;
@@ -29,6 +30,31 @@ int Machine_SetLoadThresholds(int warningThreshold, int faultThreshold)
     loadFaultThreshold = faultThreshold;
 
     return 1;
+}
+void Machine_ApplyStateOutputs(MachineState state)
+{
+    switch (state)
+    {
+        case MACHINE_STATE_IDLE:
+            StatusLed_AllOff();
+            break;
+
+        case MACHINE_STATE_RUNNING:
+            StatusLed_Green();
+            break;
+
+        case MACHINE_STATE_WARNING:
+            StatusLed_Yellow();
+            break;
+
+        case MACHINE_STATE_FAULT:
+            StatusLed_Red();
+            break;
+
+        default:
+            StatusLed_AllOff();
+            break;
+    }
 }
 
 int Machine_GetLoadWarningThreshold(void)
@@ -54,6 +80,7 @@ void Machine_EvaluateRuntimeState(const TelemetryData *telemetry,
                                   MachineState *state,
                                   FaultCode_t *fault)
 {
+	MachineState previousState = *state;
     if (telemetry == NULL || state == NULL || fault == NULL)
     {
         return;
@@ -115,5 +142,8 @@ void Machine_EvaluateRuntimeState(const TelemetryData *telemetry,
             *fault = FAULT_NONE;
             *state = MACHINE_STATE_RUNNING;
         }
+    }
+    if(previousState!=*state){
+    	Machine_ApplyStateOutputs(*state);
     }
 }

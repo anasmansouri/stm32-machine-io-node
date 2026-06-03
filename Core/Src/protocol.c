@@ -19,7 +19,7 @@ void Protocol_HandleCommand(const char *cmd,
                             char *response,
                             uint32_t responseSize){
 
-
+	  MachineState previousState = *state;
 	if (strcmp(cmd, "PING") == 0)
 	    {
 	      snprintf(response,responseSize,"ACK:PING\r\n");
@@ -188,6 +188,12 @@ void Protocol_HandleCommand(const char *cmd,
 	    {
 	      snprintf(response,responseSize,"NACK:UNKNOWN_CMD\r\n");
 	    }
+
+	if (*state != previousState)
+	    {
+	        Machine_ApplyStateOutputs(*state);
+	    }
+
 }
 
 
