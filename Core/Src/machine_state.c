@@ -7,6 +7,15 @@
 
 #include "machine_state.h"
 #include <stddef.h>
+
+/* Default load thresholds */
+static int loadWarningThreshold = 75;
+static int loadFaultThreshold = 90;
+
+/* Default temperature thresholds */
+static int tempWarningThreshold = 35;
+static int tempFaultThreshold = 45;
+
 int Machine_SetLoadThresholds(int warningThreshold, int faultThreshold)
 {
     if (warningThreshold < 0 || warningThreshold > 100 ||

@@ -161,11 +161,6 @@ int main(void)
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
   telemetryMutex = osMutexNew(NULL);
-  /*
-  int temp_warning_threshold = 35;
-  int temp_fault_threshold   = 45;
-  int loadFaultThreshold =75;
-  */
 
 
   /* USER CODE END RTOS_MUTEX */
