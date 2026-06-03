@@ -549,15 +549,16 @@ void StartCommandTask(void *argument)
     status = osMutexAcquire(telemetryMutex, osWaitForever);
     if(status==osOK){
     	telemetry_data=latestTelemetry;
+    	Protocol_HandleCommand(cmd.text,
+    	    					   &telemetry_data,
+    							   &machine_state,
+    							   &faultCode,
+    	                           response,
+    							   sizeof(response));
         osMutexRelease(telemetryMutex);
     }
 
-    Protocol_HandleCommand(cmd.text,
-    					   &telemetry_data,
-						   &machine_state,
-						   &faultCode,
-                           response,
-						   sizeof(response));
+
     HAL_UART_Transmit(&huart1, (uint8_t *)response, strlen(response), HAL_MAX_DELAY);
   }
   /* USER CODE END StartCommandTask */
@@ -614,11 +615,11 @@ void StartTelemetryTask(void *argument)
       }
       status = osMutexAcquire(telemetryMutex, osWaitForever);
       if(status==osOK){
-    	  TelemetryData tempTelemetry_data =latestTelemetry;
+    	  Machine_EvaluateRuntimeState(&latestTelemetry,
+    	      	      			  	  	  	  	  	  	   &machine_state,
+    	      	      			  						   &faultCode);
     	  osMutexRelease(telemetryMutex);
-    	  Machine_EvaluateRuntimeState(&tempTelemetry_data,
-    	      			  	  	  	  	  	  	   &machine_state,
-    	      			  						   &faultCode);
+
       }
       osDelay(100);
   }
