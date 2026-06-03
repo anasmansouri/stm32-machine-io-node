@@ -25,19 +25,16 @@
 
 #include <string.h>
 #include <stdio.h>
+#include "shared_types.h"
 #include "telemetry_data.h"
 #include "dht11.h"
 #include "protocol.h"
 #include "load_sensor.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-typedef struct
-{
-  char text[32];
-} CommandMessage;
-
 
 /* USER CODE END PTD */
 
@@ -75,7 +72,7 @@ const osThreadAttr_t UartRxTask_attributes = {
 osThreadId_t CommandTaskHandle;
 const osThreadAttr_t CommandTask_attributes = {
   .name = "CommandTask",
-  .stack_size = 1024 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for TelemetryTask */
@@ -96,6 +93,9 @@ TelemetryData latestTelemetry = {
 	.systemStatus=SYSTEM_OK
 };
 osMutexId_t telemetryMutex;
+MachineState machine_state = MACHINE_STATE_IDLE;
+FaultCode_t faultCode = FAULT_NONE;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -108,7 +108,6 @@ void StartDefaultTask(void *argument);
 void StartUartRxTask(void *argument);
 void StartCommandTask(void *argument);
 void StartTelemetryTask(void *argument);
-
 
 /* USER CODE BEGIN PFP */
 
@@ -161,6 +160,13 @@ int main(void)
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
   telemetryMutex = osMutexNew(NULL);
+  /*
+  int temp_warning_threshold = 35;
+  int temp_fault_threshold   = 45;
+  int loadFaultThreshold =75;
+  */
+
+
   /* USER CODE END RTOS_MUTEX */
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
@@ -547,6 +553,8 @@ void StartCommandTask(void *argument)
 
     Protocol_HandleCommand(cmd.text,
     					   &telemetry_data,
+						   &machine_state,
+						   &faultCode,
                            response,
 						   sizeof(response));
     HAL_UART_Transmit(&huart1, (uint8_t *)response, strlen(response), HAL_MAX_DELAY);
@@ -605,14 +613,11 @@ void StartTelemetryTask(void *argument)
       }
       status = osMutexAcquire(telemetryMutex, osWaitForever);
       if(status==osOK){
-    	  if(latestTelemetry.loadStatus==LOAD_OK && latestTelemetry.dhtStatus==DHT_OK){
-    		  latestTelemetry.systemStatus=SYSTEM_OK;
-    	  }else if(latestTelemetry.loadStatus==LOAD_ADC_ERROR && latestTelemetry.dhtStatus==DHT_ERROR){
-    		  latestTelemetry.systemStatus=SYSTEM_ERROR;
-    	  }else{
-    		  latestTelemetry.systemStatus=SYSTEM_WARNING;
-    	  }
+    	  TelemetryData tempTelemetry_data =latestTelemetry;
     	  osMutexRelease(telemetryMutex);
+    	  Machine_EvaluateRuntimeState(&tempTelemetry_data,
+    	      			  	  	  	  	  	  	   &machine_state,
+    	      			  						   &faultCode);
       }
       osDelay(100);
   }

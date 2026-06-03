@@ -36,7 +36,6 @@ typedef struct
 } TelemetryData;
 
 
-
 const char* dht_status_to_string(DhtStatus_t status);
 
 const char* load_status_to_string(LoadStatus_t status);
