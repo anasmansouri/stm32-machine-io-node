@@ -30,6 +30,7 @@
 #include "dht11.h"
 #include "protocol.h"
 #include "load_sensor.h"
+#include "machine_state.h"
 
 /* USER CODE END Includes */
 

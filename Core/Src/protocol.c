@@ -9,14 +9,8 @@
 #include <string.h>
 #include <stdio.h>
 
+#include "machine_state.h"
 
-/* Default load thresholds */
-static int loadWarningThreshold = 75;
-static int loadFaultThreshold = 90;
-
-/* Default temperature thresholds */
-static int tempWarningThreshold = 35;
-static int tempFaultThreshold = 45;
 
 void Protocol_HandleCommand(const char *cmd,
                             const TelemetryData *telemetry,
@@ -42,17 +36,17 @@ void Protocol_HandleCommand(const char *cmd,
 	    		*fault=FAULT_LOAD_SENSOR_ERROR;
 	    		*state=MACHINE_STATE_FAULT;
 	    		snprintf(response,responseSize,"NACK:START_MACHINE:%s\r\n",fault_status_to_string(*fault));
-	    	}else if(telemetry->load>=loadFaultThreshold){
+	    	}else if(telemetry->load>=Machine_GetLoadFaultThreshold()){
 	    		*fault=FAULT_LOAD_TOO_HIGH;
 	    		*state=MACHINE_STATE_FAULT;
 	    		snprintf(response,responseSize,"NACK:START_MACHINE:%s\r\n",fault_status_to_string(*fault));
-	    	}else if(telemetry->temperature>=tempFaultThreshold){
+	    	}else if(telemetry->temperature>=Machine_GetTempFaultThreshold()){
 	    		*fault=FAULT_OVERTEMPERATURE;
 	    		*state=MACHINE_STATE_FAULT;
 	    		snprintf(response,responseSize,"NACK:START_MACHINE:%s\r\n",fault_status_to_string(*fault));
 	    	}else{
 	    		*fault=FAULT_NONE;
-	    		if(telemetry->load>=loadWarningThreshold||telemetry->temperature>=tempWarningThreshold){
+	    		if(telemetry->load>=Machine_GetLoadWarningThreshold()||telemetry->temperature>=Machine_GetTempWarningThreshold()){
 	    			*state=MACHINE_STATE_WARNING;
 	    		}else{
 	    			*state=MACHINE_STATE_RUNNING;
@@ -92,7 +86,7 @@ void Protocol_HandleCommand(const char *cmd,
 	                     "NACK:RESET_FAULT:%s\r\n",
 	                     fault_status_to_string(*fault));
 	        }
-	        else if (telemetry->load >= loadFaultThreshold)
+	        else if (telemetry->load >= Machine_GetLoadFaultThreshold())
 	        {
 	            *fault = FAULT_LOAD_TOO_HIGH;
 
@@ -101,7 +95,7 @@ void Protocol_HandleCommand(const char *cmd,
 	                     "NACK:RESET_FAULT:%s\r\n",
 	                     fault_status_to_string(*fault));
 	        }
-	        else if (telemetry->temperature >= tempFaultThreshold)
+	        else if (telemetry->temperature >= Machine_GetTempFaultThreshold())
 	        {
 	            *fault = FAULT_OVERTEMPERATURE;
 
@@ -146,23 +140,21 @@ void Protocol_HandleCommand(const char *cmd,
 	        }
 	        else
 	        {
-	        	loadWarningThreshold = warn;
-	        	loadFaultThreshold = faultValue;
-
+	        	Machine_SetLoadThresholds(warn,faultValue);
 	        	if (*state == MACHINE_STATE_RUNNING || *state == MACHINE_STATE_WARNING)
 	        	{
-	        	    if (telemetry->load >= loadFaultThreshold)
+	        	    if (telemetry->load >= Machine_GetLoadFaultThreshold())
 	        	    {
 	        	        *fault = FAULT_LOAD_TOO_HIGH;
 	        	        *state = MACHINE_STATE_FAULT;
 	        	    }
-	        	    else if (telemetry->temperature >= tempFaultThreshold)
+	        	    else if (telemetry->temperature >= Machine_GetTempFaultThreshold())
 	        	    {
 	        	        *fault = FAULT_OVERTEMPERATURE;
 	        	        *state = MACHINE_STATE_FAULT;
 	        	    }
-	        	    else if (telemetry->load >= loadWarningThreshold ||
-	        	             telemetry->temperature >= tempWarningThreshold)
+	        	    else if (telemetry->load >= Machine_GetLoadWarningThreshold() ||
+	        	             telemetry->temperature >= Machine_GetTempWarningThreshold())
 	        	    {
 	        	        *fault = FAULT_NONE;
 	        	        *state = MACHINE_STATE_WARNING;

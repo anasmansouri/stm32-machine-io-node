@@ -6,6 +6,41 @@
  */
 
 #include "machine_state.h"
+#include <stddef.h>
+int Machine_SetLoadThresholds(int warningThreshold, int faultThreshold)
+{
+    if (warningThreshold < 0 || warningThreshold > 100 ||
+        faultThreshold < 0 || faultThreshold > 100 ||
+        warningThreshold >= faultThreshold)
+    {
+        return 0;
+    }
+
+    loadWarningThreshold = warningThreshold;
+    loadFaultThreshold = faultThreshold;
+
+    return 1;
+}
+
+int Machine_GetLoadWarningThreshold(void)
+{
+    return loadWarningThreshold;
+}
+
+int Machine_GetLoadFaultThreshold(void)
+{
+    return loadFaultThreshold;
+}
+
+int Machine_GetTempWarningThreshold(void)
+{
+    return tempWarningThreshold;
+}
+
+int Machine_GetTempFaultThreshold(void)
+{
+    return tempFaultThreshold;
+}
 void Machine_EvaluateRuntimeState(const TelemetryData *telemetry,
                                   MachineState *state,
                                   FaultCode_t *fault)
