@@ -466,7 +466,7 @@ void StartDefaultTask(void *argument)
 void StartUartRxTask(void *argument)
 {
   /* USER CODE BEGIN StartUartRxTask */
-  uint8_t rxBuffer[32] = {0};
+  uint8_t rxBuffer[64] = {0};
   uint8_t rxByte = 0;
   int index = 0;
   /* Infinite loop */
@@ -541,7 +541,7 @@ void StartCommandTask(void *argument)
       continue;
     }
     TelemetryData telemetry_data ={0};
-    char response[128]={0};
+    char response[256]={0};
     status = osMutexAcquire(telemetryMutex, osWaitForever);
     if(status==osOK){
     	telemetry_data=latestTelemetry;

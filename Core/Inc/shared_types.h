@@ -10,7 +10,7 @@
 
 typedef struct
 {
-  char text[32];
+  char text[64];
 } CommandMessage;
 
 typedef enum{
