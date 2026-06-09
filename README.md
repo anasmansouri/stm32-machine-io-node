@@ -207,3 +207,14 @@ Parity: None
 Stop bits: 1
 Flow control: None
 ```
+## Skills Demonstrated
+
+* STM32 firmware development
+* Embedded C
+* UART communication
+* Sensor integration
+* Command-response protocol design
+* Fault handling
+* Machine state management
+* GPIO LED control
+* Integration with Embedded Linux gateway
