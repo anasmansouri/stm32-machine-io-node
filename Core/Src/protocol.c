@@ -174,7 +174,7 @@ void Protocol_HandleCommand(const char *cmd,
 	    {
 	    	snprintf(response,
 	               responseSize,
-	               "STATUS:TEMP=%d;HUM=%d;LOAD=%d;VIB_X=%d;VIB_Y=%d;VIB_Z=%d;STATE=%s;FAULT=%s;OPERATING_MODE=AUTO_MODE;DHT_STATUS=%s;LOAD_STATUS=%s\r\n",
+	               "STATUS:TEMP=%d;HUM=%d;LOAD=%d;VIB_X=%ld mg;VIB_Y=%ld mg;VIB_Z=%ld mg;STATE=%s;FAULT=%s;OPERATING_MODE=AUTO_MODE;DHT_STATUS=%s;LOAD_STATUS=%s\r\n",
 				   telemetry->temperature,
 				   telemetry->humidity,
 				   telemetry->load,
