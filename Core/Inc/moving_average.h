@@ -9,6 +9,7 @@ typedef struct
 {
     int32_t buffer[MOVING_AVERAGE_SIZE];
     uint8_t index;
+    uint8_t count;
     int32_t sum;
 } MovingAverageFilter;
 

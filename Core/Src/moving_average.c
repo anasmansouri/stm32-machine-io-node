@@ -4,6 +4,7 @@ void MovingAverage_Init(MovingAverageFilter *filter)
 {
     filter->index = 0;
     filter->sum = 0;
+    filter->count = 0;
 
     for (uint8_t i = 0; i < MOVING_AVERAGE_SIZE; i++)
     {

@@ -32,6 +32,7 @@
 #include "load_sensor.h"
 #include "machine_state.h"
 #include "adxl345.h"
+#include "moving_average.h"
 
 /* USER CODE END Includes */
 
@@ -102,6 +103,9 @@ MachineState machine_state = MACHINE_STATE_IDLE;
 FaultCode_t faultCode = FAULT_NONE;
 volatile uint32_t tachPulseCount = 0;
 volatile uint32_t fanRpm = 0;
+MovingAverageFilter xFilter;
+MovingAverageFilter yFilter;
+MovingAverageFilter zFilter;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -609,6 +613,10 @@ void StartDefaultTask(void *argument)
                       HAL_MAX_DELAY);
   }
 
+  MovingAverage_Init(&xFilter);
+  MovingAverage_Init(&yFilter);
+  MovingAverage_Init(&zFilter);
+
   osDelay(500);
   for (;;)
   {
@@ -651,6 +659,7 @@ void StartDefaultTask(void *argument)
 
     //	       HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
     // osDelay(1000);
+
     int16_t x, y, z;
     char msg[128];
 
@@ -659,10 +668,25 @@ void StartDefaultTask(void *argument)
         int32_t x_mg = (int32_t)x * 1000 / 256;
         int32_t y_mg = (int32_t)y * 1000 / 256;
         int32_t z_mg = (int32_t)z * 1000 / 256;
+        int32_t x_avg = MovingAverage_Update(&xFilter, x_mg);
+        int32_t y_avg = MovingAverage_Update(&yFilter, y_mg);
+        int32_t z_avg = MovingAverage_Update(&zFilter, z_mg);
+
+        osStatus_t status;
+        status = osMutexAcquire(telemetryMutex, osWaitForever);
+        if (status == osOK)
+        {
+        	latestTelemetry.vibrationX_mg = x_avg;
+        	latestTelemetry.vibrationY_mg = y_avg;
+        	latestTelemetry.vibrationZ_mg = z_avg;
+        	osMutexRelease(telemetryMutex);
+        }
 
         snprintf(msg, sizeof(msg),
-                 "X=%ldmg Y=%ldmg Z=%ldmg\r\n",
-                 x_mg, y_mg, z_mg);
+                 "X=%ldmg X_avg=%ldmg | Y=%ldmg Y_avg=%ldmg | Z=%ldmg Z_avg=%ldmg\r\n",
+                 x_mg, x_avg,
+                 y_mg, y_avg,
+                 z_mg, z_avg);
     }
     else
     {
