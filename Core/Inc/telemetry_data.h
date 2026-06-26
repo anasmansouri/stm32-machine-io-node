@@ -8,6 +8,7 @@
 #ifndef INC_TELEMETRY_DATA_H_
 #define INC_TELEMETRY_DATA_H_
 #include <stdint.h>
+#include <stdbool.h>
 typedef enum {
     DHT_OK,
 	DHT_ERROR
@@ -30,9 +31,11 @@ typedef struct
 	int temperature;
 	int humidity;
 	int load;
+	uint32_t fan_rpm;
 	int32_t vibrationX_mg;
 	int32_t vibrationY_mg;
 	int32_t vibrationZ_mg;
+	bool emergency_button;
 	DhtStatus_t dhtStatus;
 	LoadStatus_t loadStatus;
 	SystemStatus_t systemStatus;

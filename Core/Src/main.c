@@ -595,29 +595,7 @@ void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
   /* Infinite loop */
-  osDelay(1000);
-  // I2C_Scan();
-  //
-  if (ADXL345_Init(&hi2c1) == HAL_OK)
-  {
-    HAL_UART_Transmit(&huart2,
-                      (uint8_t *)"ADXL345 init OK\r\n",
-                      17,
-                      HAL_MAX_DELAY);
-  }
-  else
-  {
-    HAL_UART_Transmit(&huart2,
-                      (uint8_t *)"ADXL345 init FAILED\r\n",
-                      22,
-                      HAL_MAX_DELAY);
-  }
 
-  MovingAverage_Init(&xFilter);
-  MovingAverage_Init(&yFilter);
-  MovingAverage_Init(&zFilter);
-
-  osDelay(500);
   for (;;)
   {
     /*
@@ -660,40 +638,6 @@ void StartDefaultTask(void *argument)
     //	       HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
     // osDelay(1000);
 
-    int16_t x, y, z;
-    char msg[128];
-
-    if (ADXL345_ReadXYZ(&hi2c1, &x, &y, &z) == HAL_OK)
-    {
-        int32_t x_mg = (int32_t)x * 1000 / 256;
-        int32_t y_mg = (int32_t)y * 1000 / 256;
-        int32_t z_mg = (int32_t)z * 1000 / 256;
-        int32_t x_avg = MovingAverage_Update(&xFilter, x_mg);
-        int32_t y_avg = MovingAverage_Update(&yFilter, y_mg);
-        int32_t z_avg = MovingAverage_Update(&zFilter, z_mg);
-
-        osStatus_t status;
-        status = osMutexAcquire(telemetryMutex, osWaitForever);
-        if (status == osOK)
-        {
-        	latestTelemetry.vibrationX_mg = x_avg;
-        	latestTelemetry.vibrationY_mg = y_avg;
-        	latestTelemetry.vibrationZ_mg = z_avg;
-        	osMutexRelease(telemetryMutex);
-        }
-
-        snprintf(msg, sizeof(msg),
-                 "X=%ldmg X_avg=%ldmg | Y=%ldmg Y_avg=%ldmg | Z=%ldmg Z_avg=%ldmg\r\n",
-                 x_mg, x_avg,
-                 y_mg, y_avg,
-                 z_mg, z_avg);
-    }
-    else
-    {
-        snprintf(msg, sizeof(msg), "ADXL345 read failed\r\n");
-    }
-
-    HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
     osDelay(500);
   }
   /* USER CODE END 5 */
@@ -814,10 +758,89 @@ void StartTelemetryTask(void *argument)
   /* USER CODE BEGIN StartTelemetryTask */
 
   uint32_t dhtCounterMs = 0;
+  // osDelay(1000);
+  // I2C_Scan();
+  //
+  if (ADXL345_Init(&hi2c1) == HAL_OK)
+  {
+    HAL_UART_Transmit(&huart2,
+                      (uint8_t *)"ADXL345 init OK\r\n",
+                      17,
+                      HAL_MAX_DELAY);
+  }
+  else
+  {
+    HAL_UART_Transmit(&huart2,
+                      (uint8_t *)"ADXL345 init FAILED\r\n",
+                      22,
+                      HAL_MAX_DELAY);
+  }
+
+  MovingAverage_Init(&xFilter);
+  MovingAverage_Init(&yFilter);
+  MovingAverage_Init(&zFilter);
 
   for (;;)
   {
+    // RPM and fan .
+    uint32_t pulses = tachPulseCount;
+    tachPulseCount = 0;
+    fanRpm = pulses * 300; // 2 pulses per revolution, 0.1 second window
+
     osStatus_t status;
+    status = osMutexAcquire(telemetryMutex, osWaitForever);
+    if (status == osOK)
+    {
+      latestTelemetry.fan_rpm = fanRpm;
+      osMutexRelease(telemetryMutex);
+    }
+    //
+
+    // Emergency button
+    status = osMutexAcquire(telemetryMutex, osWaitForever);
+    if (status == osOK)
+    {
+      latestTelemetry.emergency_button = !HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_0);
+      osMutexRelease(telemetryMutex);
+    }
+
+    //
+    int16_t x, y, z;
+    char msg[128];
+
+    if (ADXL345_ReadXYZ(&hi2c1, &x, &y, &z) == HAL_OK)
+    {
+      int32_t x_mg = (int32_t)x * 1000 / 256;
+      int32_t y_mg = (int32_t)y * 1000 / 256;
+      int32_t z_mg = (int32_t)z * 1000 / 256;
+      int32_t x_avg = MovingAverage_Update(&xFilter, x_mg);
+      int32_t y_avg = MovingAverage_Update(&yFilter, y_mg);
+      int32_t z_avg = MovingAverage_Update(&zFilter, z_mg);
+
+      osStatus_t status;
+      status = osMutexAcquire(telemetryMutex, osWaitForever);
+      if (status == osOK)
+      {
+        latestTelemetry.vibrationX_mg = x_avg;
+        latestTelemetry.vibrationY_mg = y_avg;
+        latestTelemetry.vibrationZ_mg = z_avg;
+        osMutexRelease(telemetryMutex);
+      }
+
+      snprintf(msg, sizeof(msg),
+               "X=%ldmg X_avg=%ldmg | Y=%ldmg Y_avg=%ldmg | Z=%ldmg Z_avg=%ldmg\r\n",
+               x_mg, x_avg,
+               y_mg, y_avg,
+               z_mg, z_avg);
+    }
+    else
+    {
+      snprintf(msg, sizeof(msg), "ADXL345 read failed\r\n");
+    }
+
+    HAL_UART_Transmit(&huart2, (uint8_t *)msg, strlen(msg), HAL_MAX_DELAY);
+
+    //
     int load = LoadSensor_ReadPercent(&hadc1);
     status = osMutexAcquire(telemetryMutex, osWaitForever);
     if (status == osOK)
