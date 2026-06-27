@@ -800,7 +800,7 @@ void StartTelemetryTask(void *argument)
     status = osMutexAcquire(telemetryMutex, osWaitForever);
     if (status == osOK)
     {
-      latestTelemetry.emergency_button = !HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_0);
+      latestTelemetry.emergency_button = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_0);
       osMutexRelease(telemetryMutex);
     }
 
