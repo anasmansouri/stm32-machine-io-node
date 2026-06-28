@@ -17,6 +17,7 @@ const char* fault_status_to_string(FaultCode_t status) {
         case FAULT_DOOR_OPEN: 		  return "FAULT_DOOR_OPEN";
         case FAULT_OBSTACLE_DETECTED: 		  return "FAULT_OBSTACLE_DETECTED";
         case FAULT_EMERGENCY_STOP:			return "FAULT_EMERGENCY_STOP";
+        case FAULT_VIBRATION_HIGH: return "FAULT_VIBRATION_HIGH";
         default:                  return "FAULT_UNKNOWN_STATUS";
     }
 }

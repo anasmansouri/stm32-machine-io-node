@@ -17,6 +17,10 @@ static int loadFaultThreshold = 90;
 static int tempWarningThreshold = 35;
 static int tempFaultThreshold = 45;
 
+/* Default vibration thresholds */
+static int vibrationWarningThresholdMg = 1800;
+static int vibrationFaultThresholdMg = 2500;
+
 int Machine_SetLoadThresholds(int warningThreshold, int faultThreshold)
 {
     if (warningThreshold < 0 || warningThreshold > 100 ||
@@ -76,6 +80,17 @@ int Machine_GetTempFaultThreshold(void)
 {
     return tempFaultThreshold;
 }
+
+int Machine_GetVibrationLevelFaultThreshold(void)
+{
+    return vibrationFaultThresholdMg;
+}
+
+int Machine_GetVibrationLevelWarningThreshold(void)
+{
+    return vibrationWarningThresholdMg;
+}
+
 void Machine_EvaluateRuntimeState(const TelemetryData *telemetry,
                                   MachineState *state,
                                   FaultCode_t *fault)
@@ -115,6 +130,7 @@ void Machine_EvaluateRuntimeState(const TelemetryData *telemetry,
     		*fault = FAULT_EMERGENCY_STOP;
     		*state = MACHINE_STATE_FAULT;
     	}
+
     	else if (telemetry->dhtStatus != DHT_OK)
         {
             *fault = FAULT_DHT_SENSOR_ERROR;
@@ -135,8 +151,14 @@ void Machine_EvaluateRuntimeState(const TelemetryData *telemetry,
             *fault = FAULT_OVERTEMPERATURE;
             *state = MACHINE_STATE_FAULT;
         }
+        else if(telemetry->vibration_level_mg>=vibrationFaultThresholdMg)
+        {
+        	*fault = FAULT_VIBRATION_HIGH;
+            *state = MACHINE_STATE_FAULT;
+        }
         else if (telemetry->load >= loadWarningThreshold ||
-                 telemetry->temperature >= tempWarningThreshold)
+                 telemetry->temperature >= tempWarningThreshold||
+				 telemetry->vibration_level_mg>=vibrationWarningThresholdMg)
         {
             *fault = FAULT_NONE;
             *state = MACHINE_STATE_WARNING;

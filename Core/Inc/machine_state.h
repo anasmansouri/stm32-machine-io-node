@@ -20,4 +20,6 @@ int Machine_GetLoadWarningThreshold(void);
 int Machine_GetLoadFaultThreshold(void);
 int Machine_GetTempWarningThreshold(void);
 int Machine_GetTempFaultThreshold(void);
+int Machine_GetVibrationLevelFaultThreshold(void);
+int Machine_GetVibrationLevelWarningThreshold(void);
 #endif /* INC_MACHINE_STATE_H_ */

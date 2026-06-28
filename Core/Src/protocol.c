@@ -64,10 +64,17 @@ void Protocol_HandleCommand(const char *cmd,
 			*state = MACHINE_STATE_FAULT;
 			snprintf(response, responseSize, "NACK:START_MACHINE:%s\r\n", fault_status_to_string(*fault));
 		}
+		else if(telemetry->vibration_level_mg>=Machine_GetVibrationLevelFaultThreshold())
+		{
+			*fault = FAULT_VIBRATION_HIGH;
+			*state = MACHINE_STATE_FAULT;
+		}
 		else
 		{
 			*fault = FAULT_NONE;
-			if (telemetry->load >= Machine_GetLoadWarningThreshold() || telemetry->temperature >= Machine_GetTempWarningThreshold())
+			if (telemetry->load >= Machine_GetLoadWarningThreshold() ||
+					telemetry->temperature >= Machine_GetTempWarningThreshold() ||
+					telemetry->vibration_level_mg >= Machine_GetVibrationLevelWarningThreshold())
 			{
 				*state = MACHINE_STATE_WARNING;
 			}
@@ -133,6 +140,14 @@ void Protocol_HandleCommand(const char *cmd,
 		{
 			*fault = FAULT_OVERTEMPERATURE;
 
+			snprintf(response,
+					 responseSize,
+					 "NACK:RESET_FAULT:%s\r\n",
+					 fault_status_to_string(*fault));
+		}
+		else if(telemetry->vibration_level_mg>=Machine_GetVibrationLevelFaultThreshold())
+		{
+			*fault = FAULT_VIBRATION_HIGH;
 			snprintf(response,
 					 responseSize,
 					 "NACK:RESET_FAULT:%s\r\n",
