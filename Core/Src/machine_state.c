@@ -111,7 +111,11 @@ void Machine_EvaluateRuntimeState(const TelemetryData *telemetry,
      */
     if (*state == MACHINE_STATE_RUNNING || *state == MACHINE_STATE_WARNING)
     {
-        if (telemetry->dhtStatus != DHT_OK)
+    	if(telemetry->emergency_button!=EMERGENCY_BUTTON_RELEASED){
+    		*fault = FAULT_EMERGENCY_STOP;
+    		*state = MACHINE_STATE_FAULT;
+    	}
+    	else if (telemetry->dhtStatus != DHT_OK)
         {
             *fault = FAULT_DHT_SENSOR_ERROR;
             *state = MACHINE_STATE_FAULT;

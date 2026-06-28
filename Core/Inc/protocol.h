@@ -12,6 +12,7 @@
 #include "help_functions.h"
 #include <stdint.h>
 #include <stdbool.h>
+#include <inttypes.h>
 void Protocol_HandleCommand(const char *cmd,
                             const TelemetryData *telemetry,
 							MachineState *state,

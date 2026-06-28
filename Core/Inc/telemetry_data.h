@@ -35,6 +35,7 @@ typedef struct
 	int32_t vibrationX_mg;
 	int32_t vibrationY_mg;
 	int32_t vibrationZ_mg;
+	int32_t vibration_level_mg;
 	bool emergency_button;
 	DhtStatus_t dhtStatus;
 	LoadStatus_t loadStatus;

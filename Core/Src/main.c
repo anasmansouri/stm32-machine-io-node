@@ -25,6 +25,7 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "shared_types.h"
 #include "telemetry_data.h"
 #include "dht11.h"
@@ -95,6 +96,11 @@ TelemetryData latestTelemetry = {
     .temperature = 19,
     .humidity = 60,
     .load = 0,
+    .emergency_button = 0,
+    .vibrationX_mg = 0,
+    .vibrationY_mg = 0,
+    .vibrationZ_mg = 0,
+    .vibration_level_mg = 0,
     .dhtStatus = DHT_OK,
     .loadStatus = LOAD_OK,
     .systemStatus = SYSTEM_OK};
@@ -102,6 +108,7 @@ osMutexId_t telemetryMutex;
 MachineState machine_state = MACHINE_STATE_IDLE;
 FaultCode_t faultCode = FAULT_NONE;
 volatile uint32_t tachPulseCount = 0;
+volatile uint32_t tachPollPulses = 0;
 volatile uint32_t fanRpm = 0;
 MovingAverageFilter xFilter;
 MovingAverageFilter yFilter;
@@ -380,7 +387,7 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 83;
+  htim2.Init.Prescaler = 0;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim2.Init.Period = 3359;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -518,11 +525,11 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PB0 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0;
+  /*Configure GPIO pin : PC1 */
+  GPIO_InitStruct.Pin = GPIO_PIN_1;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PB10 PB4 PB5 PB6 */
   GPIO_InitStruct.Pin = GPIO_PIN_10 | GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6;
@@ -532,8 +539,8 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI0_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+  HAL_NVIC_SetPriority(EXTI1_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI1_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
@@ -543,9 +550,17 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-  if (GPIO_Pin == GPIO_PIN_0)
+  static uint32_t lastTachTick = 0;
+
+  if (GPIO_Pin == GPIO_PIN_1)
   {
-    tachPulseCount++;
+    uint32_t now = HAL_GetTick();
+
+    if ((now - lastTachTick) >= 8)
+    {
+      tachPulseCount++;
+      lastTachTick = now;
+    }
   }
 }
 
@@ -594,6 +609,7 @@ void I2C_Scan(void)
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
+
   /* Infinite loop */
 
   for (;;)
@@ -636,9 +652,7 @@ void StartDefaultTask(void *argument)
     //   HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_0));
 
     //	       HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
-    // osDelay(1000);
-
-    osDelay(500);
+    osDelay(1000);
   }
   /* USER CODE END 5 */
 }
@@ -757,9 +771,13 @@ void StartTelemetryTask(void *argument)
 {
   /* USER CODE BEGIN StartTelemetryTask */
 
-  uint32_t dhtCounterMs = 0;
-  // osDelay(1000);
-  // I2C_Scan();
+  static uint32_t dhtCounterMs = 0;
+  static uint32_t lastRpmTick = 0;
+
+  if (lastRpmTick == 0)
+  {
+    lastRpmTick = HAL_GetTick();
+  }
   //
   if (ADXL345_Init(&hi2c1) == HAL_OK)
   {
@@ -782,25 +800,31 @@ void StartTelemetryTask(void *argument)
 
   for (;;)
   {
-    // RPM and fan .
-    uint32_t pulses = tachPulseCount;
-    tachPulseCount = 0;
-    fanRpm = pulses * 300; // 2 pulses per revolution, 0.1 second window
-
     osStatus_t status;
-    status = osMutexAcquire(telemetryMutex, osWaitForever);
-    if (status == osOK)
+    uint32_t now = HAL_GetTick();
+    uint32_t elapsedMs = now - lastRpmTick;
+    if (elapsedMs >= 1000)
     {
-      latestTelemetry.fan_rpm = fanRpm;
-      osMutexRelease(telemetryMutex);
-    }
-    //
+      lastRpmTick = now;
 
+      __disable_irq();
+      uint32_t pulses = tachPulseCount;
+      tachPulseCount = 0;
+      __enable_irq();
+
+      uint32_t rpm = (pulses * 60000UL) / (2UL * elapsedMs);
+      status = osMutexAcquire(telemetryMutex, osWaitForever);
+      if (status == osOK)
+      {
+        latestTelemetry.fan_rpm = rpm;
+        osMutexRelease(telemetryMutex);
+      }
+    }
     // Emergency button
     status = osMutexAcquire(telemetryMutex, osWaitForever);
     if (status == osOK)
     {
-      latestTelemetry.emergency_button = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_0);
+      latestTelemetry.emergency_button = !HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_0);
       osMutexRelease(telemetryMutex);
     }
 
@@ -816,7 +840,8 @@ void StartTelemetryTask(void *argument)
       int32_t x_avg = MovingAverage_Update(&xFilter, x_mg);
       int32_t y_avg = MovingAverage_Update(&yFilter, y_mg);
       int32_t z_avg = MovingAverage_Update(&zFilter, z_mg);
-
+      int32_t vibration_level_mg =
+          labs(x_avg) + labs(y_avg) + labs(z_avg);
       osStatus_t status;
       status = osMutexAcquire(telemetryMutex, osWaitForever);
       if (status == osOK)
@@ -824,21 +849,10 @@ void StartTelemetryTask(void *argument)
         latestTelemetry.vibrationX_mg = x_avg;
         latestTelemetry.vibrationY_mg = y_avg;
         latestTelemetry.vibrationZ_mg = z_avg;
+        latestTelemetry.vibration_level_mg = vibration_level_mg;
         osMutexRelease(telemetryMutex);
       }
-
-      snprintf(msg, sizeof(msg),
-               "X=%ldmg X_avg=%ldmg | Y=%ldmg Y_avg=%ldmg | Z=%ldmg Z_avg=%ldmg\r\n",
-               x_mg, x_avg,
-               y_mg, y_avg,
-               z_mg, z_avg);
     }
-    else
-    {
-      snprintf(msg, sizeof(msg), "ADXL345 read failed\r\n");
-    }
-
-    HAL_UART_Transmit(&huart2, (uint8_t *)msg, strlen(msg), HAL_MAX_DELAY);
 
     //
     int load = LoadSensor_ReadPercent(&hadc1);
