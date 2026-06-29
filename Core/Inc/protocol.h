@@ -12,8 +12,6 @@
 #include "help_functions.h"
 #include <stdint.h>
 #include <stdbool.h>
-#include <inttypes.h>
-static FaultCode_t Protocol_GetActiveFault(const TelemetryData *telemetry);
 
 void Protocol_HandleCommand(const char *cmd,
                             const TelemetryData *telemetry,

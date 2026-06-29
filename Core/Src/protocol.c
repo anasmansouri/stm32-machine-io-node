@@ -9,6 +9,8 @@
 #include <string.h>
 #include <stdio.h>
 
+#include <inttypes.h>
+
 #include "machine_state.h"
 
 static void Protocol_SetFaultAndNack(const char *command,

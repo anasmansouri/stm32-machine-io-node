@@ -8,6 +8,7 @@
 #include "machine_state.h"
 #include <stddef.h>
 #include "status_led.h"
+#include "fan_control.h"
 
 /* Default load thresholds */
 static int loadWarningThreshold = 75;
@@ -40,22 +41,27 @@ void Machine_ApplyStateOutputs(MachineState state)
     switch (state)
     {
         case MACHINE_STATE_IDLE:
+        	Fan_Stop();
             StatusLed_AllOff();
             break;
 
         case MACHINE_STATE_RUNNING:
+        	Fan_SetDutyPercent(FAN_DUTY_IN_RUNNING_STATE);
             StatusLed_Green();
             break;
 
         case MACHINE_STATE_WARNING:
+        	Fan_SetDutyPercent(FAN_DUTY_IN_WARNING_STATE);
             StatusLed_Yellow();
             break;
 
         case MACHINE_STATE_FAULT:
-            StatusLed_Red();
+        	Fan_Stop();
+        	StatusLed_Red();
             break;
 
         default:
+        	Fan_Stop();
             StatusLed_AllOff();
             break;
     }

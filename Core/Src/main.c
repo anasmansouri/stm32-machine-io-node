@@ -34,6 +34,7 @@
 #include "machine_state.h"
 #include "adxl345.h"
 #include "moving_average.h"
+#include "fan_control.h"
 
 /* USER CODE END Includes */
 
@@ -173,8 +174,10 @@ int main(void)
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
   DHT11_Init();
-  Machine_ApplyStateOutputs(machine_state);
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+  Fan_Init(&htim2, TIM_CHANNEL_1);
+
+  Machine_ApplyStateOutputs(machine_state);
   // I2C_Scan();
   /* USER CODE END 2 */
 
@@ -614,6 +617,7 @@ void StartDefaultTask(void *argument)
 
   for (;;)
   {
+
     /*
 
     __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);   // 0%
@@ -797,7 +801,7 @@ void StartTelemetryTask(void *argument)
   MovingAverage_Init(&xFilter);
   MovingAverage_Init(&yFilter);
   MovingAverage_Init(&zFilter);
-
+  Fan_Stop();
   for (;;)
   {
     osStatus_t status;
