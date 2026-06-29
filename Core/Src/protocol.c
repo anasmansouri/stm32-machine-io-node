@@ -11,6 +11,57 @@
 
 #include "machine_state.h"
 
+static void Protocol_SetFaultAndNack(const char *command,
+									 FaultCode_t detectedFault,
+									 MachineState *state,
+									 FaultCode_t *fault,
+									 char *response,
+									 uint32_t responseSize)
+{
+	*fault = detectedFault;
+	*state = MACHINE_STATE_FAULT;
+
+	snprintf(response,
+			 responseSize,
+			 "NACK:%s:%s\r\n",
+			 command,
+			 fault_status_to_string(*fault));
+}
+
+static FaultCode_t Protocol_GetActiveFault(const TelemetryData *telemetry)
+{
+	if (telemetry->emergency_button != EMERGENCY_BUTTON_RELEASED)
+	{
+		return FAULT_EMERGENCY_STOP;
+	}
+
+	if (telemetry->dhtStatus != DHT_OK)
+	{
+		return FAULT_DHT_SENSOR_ERROR;
+	}
+
+	if (telemetry->loadStatus != LOAD_OK)
+	{
+		return FAULT_LOAD_SENSOR_ERROR;
+	}
+
+	if (telemetry->load >= Machine_GetLoadFaultThreshold())
+	{
+		return FAULT_LOAD_TOO_HIGH;
+	}
+
+	if (telemetry->temperature >= Machine_GetTempFaultThreshold())
+	{
+		return FAULT_OVERTEMPERATURE;
+	}
+
+	if (telemetry->vibration_level_mg >= Machine_GetVibrationLevelFaultThreshold())
+	{
+		return FAULT_VIBRATION_HIGH;
+	}
+
+	return FAULT_NONE;
+}
 void Protocol_HandleCommand(const char *cmd,
 							const TelemetryData *telemetry,
 							MachineState *state,
@@ -18,8 +69,14 @@ void Protocol_HandleCommand(const char *cmd,
 							char *response,
 							uint32_t responseSize)
 {
+	if (cmd == NULL || telemetry == NULL || state == NULL ||
+		fault == NULL || response == NULL || responseSize == 0)
+	{
+		return;
+	}
 
 	MachineState previousState = *state;
+
 	if (strcmp(cmd, "PING") == 0)
 	{
 		snprintf(response, responseSize, "ACK:PING\r\n");
@@ -34,55 +91,26 @@ void Protocol_HandleCommand(const char *cmd,
 		{
 			snprintf(response, responseSize, "NACK:START_MACHINE:NOT_IDLE\r\n");
 		}
-		else if (telemetry->emergency_button != EMERGENCY_BUTTON_RELEASED)
-		{
-			*fault = FAULT_EMERGENCY_STOP;
-			*state = MACHINE_STATE_FAULT;
-			snprintf(response, responseSize, "NACK:START_MACHINE:%s\r\n", fault_status_to_string(*fault));
-		}
-		else if (telemetry->dhtStatus != DHT_OK)
-		{
-			*fault = FAULT_DHT_SENSOR_ERROR;
-			*state = MACHINE_STATE_FAULT;
-			snprintf(response, responseSize, "NACK:START_MACHINE:%s\r\n", fault_status_to_string(*fault));
-		}
-		else if (telemetry->loadStatus != LOAD_OK)
-		{
-			*fault = FAULT_LOAD_SENSOR_ERROR;
-			*state = MACHINE_STATE_FAULT;
-			snprintf(response, responseSize, "NACK:START_MACHINE:%s\r\n", fault_status_to_string(*fault));
-		}
-		else if (telemetry->load >= Machine_GetLoadFaultThreshold())
-		{
-			*fault = FAULT_LOAD_TOO_HIGH;
-			*state = MACHINE_STATE_FAULT;
-			snprintf(response, responseSize, "NACK:START_MACHINE:%s\r\n", fault_status_to_string(*fault));
-		}
-		else if (telemetry->temperature >= Machine_GetTempFaultThreshold())
-		{
-			*fault = FAULT_OVERTEMPERATURE;
-			*state = MACHINE_STATE_FAULT;
-			snprintf(response, responseSize, "NACK:START_MACHINE:%s\r\n", fault_status_to_string(*fault));
-		}
-		else if(telemetry->vibration_level_mg>=Machine_GetVibrationLevelFaultThreshold())
-		{
-			*fault = FAULT_VIBRATION_HIGH;
-			*state = MACHINE_STATE_FAULT;
-		}
 		else
 		{
-			*fault = FAULT_NONE;
-			if (telemetry->load >= Machine_GetLoadWarningThreshold() ||
-					telemetry->temperature >= Machine_GetTempWarningThreshold() ||
-					telemetry->vibration_level_mg >= Machine_GetVibrationLevelWarningThreshold())
+
+			FaultCode_t active_fault = Protocol_GetActiveFault(telemetry);
+			if (active_fault != FAULT_NONE)
 			{
-				*state = MACHINE_STATE_WARNING;
+				Protocol_SetFaultAndNack(cmd,
+										 active_fault,
+										 state,
+										 fault,
+										 response,
+										 responseSize);
 			}
 			else
 			{
+				*fault = FAULT_NONE;
 				*state = MACHINE_STATE_RUNNING;
+				Machine_EvaluateRuntimeState(telemetry, state, fault);
+				snprintf(response, responseSize, "ACK:START_MACHINE\r\n");
 			}
-			snprintf(response, responseSize, "ACK:START_MACHINE\r\n");
 		}
 	}
 	else if (strcmp(cmd, "STOP_MACHINE") == 0)
@@ -102,65 +130,27 @@ void Protocol_HandleCommand(const char *cmd,
 			snprintf(response,
 					 responseSize,
 					 "NACK:RESET_FAULT:NO_ACTIVE_FAULT\r\n");
-		}else if(telemetry->emergency_button!=EMERGENCY_BUTTON_RELEASED){
-			*fault = FAULT_EMERGENCY_STOP;
-			snprintf(response,
-					 responseSize,
-					 "NACK:RESET_FAULT:%s\r\n",
-					 fault_status_to_string(*fault));
-
-		}else if (telemetry->dhtStatus != DHT_OK)
-		{
-			*fault = FAULT_DHT_SENSOR_ERROR;
-
-			snprintf(response,
-					 responseSize,
-					 "NACK:RESET_FAULT:%s\r\n",
-					 fault_status_to_string(*fault));
-		}
-		else if (telemetry->loadStatus != LOAD_OK)
-		{
-			*fault = FAULT_LOAD_SENSOR_ERROR;
-
-			snprintf(response,
-					 responseSize,
-					 "NACK:RESET_FAULT:%s\r\n",
-					 fault_status_to_string(*fault));
-		}
-		else if (telemetry->load >= Machine_GetLoadFaultThreshold())
-		{
-			*fault = FAULT_LOAD_TOO_HIGH;
-
-			snprintf(response,
-					 responseSize,
-					 "NACK:RESET_FAULT:%s\r\n",
-					 fault_status_to_string(*fault));
-		}
-		else if (telemetry->temperature >= Machine_GetTempFaultThreshold())
-		{
-			*fault = FAULT_OVERTEMPERATURE;
-
-			snprintf(response,
-					 responseSize,
-					 "NACK:RESET_FAULT:%s\r\n",
-					 fault_status_to_string(*fault));
-		}
-		else if(telemetry->vibration_level_mg>=Machine_GetVibrationLevelFaultThreshold())
-		{
-			*fault = FAULT_VIBRATION_HIGH;
-			snprintf(response,
-					 responseSize,
-					 "NACK:RESET_FAULT:%s\r\n",
-					 fault_status_to_string(*fault));
 		}
 		else
 		{
-			*fault = FAULT_NONE;
-			*state = MACHINE_STATE_IDLE;
-
-			snprintf(response,
-					 responseSize,
-					 "ACK:RESET_FAULT\r\n");
+			FaultCode_t active_fault = Protocol_GetActiveFault(telemetry);
+			if (active_fault != FAULT_NONE)
+			{
+				Protocol_SetFaultAndNack(cmd,
+										 active_fault,
+										 state,
+										 fault,
+										 response,
+										 responseSize);
+			}
+			else
+			{
+				*fault = FAULT_NONE;
+				*state = MACHINE_STATE_IDLE;
+				snprintf(response,
+						 responseSize,
+						 "ACK:RESET_FAULT\r\n");
+			}
 		}
 	}
 	else if (strncmp(cmd, "SET_LOAD_THRESHOLD:", strlen("SET_LOAD_THRESHOLD:")) == 0)
@@ -190,30 +180,7 @@ void Protocol_HandleCommand(const char *cmd,
 		else
 		{
 			Machine_SetLoadThresholds(warn, faultValue);
-			if (*state == MACHINE_STATE_RUNNING || *state == MACHINE_STATE_WARNING)
-			{
-				if (telemetry->load >= Machine_GetLoadFaultThreshold())
-				{
-					*fault = FAULT_LOAD_TOO_HIGH;
-					*state = MACHINE_STATE_FAULT;
-				}
-				else if (telemetry->temperature >= Machine_GetTempFaultThreshold())
-				{
-					*fault = FAULT_OVERTEMPERATURE;
-					*state = MACHINE_STATE_FAULT;
-				}
-				else if (telemetry->load >= Machine_GetLoadWarningThreshold() ||
-						 telemetry->temperature >= Machine_GetTempWarningThreshold())
-				{
-					*fault = FAULT_NONE;
-					*state = MACHINE_STATE_WARNING;
-				}
-				else
-				{
-					*fault = FAULT_NONE;
-					*state = MACHINE_STATE_RUNNING;
-				}
-			}
+			Machine_EvaluateRuntimeState(telemetry, state, fault);
 			snprintf(response,
 					 responseSize,
 					 "ACK:SET_LOAD_THRESHOLD\r\n");

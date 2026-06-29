@@ -95,11 +95,12 @@ void Machine_EvaluateRuntimeState(const TelemetryData *telemetry,
                                   MachineState *state,
                                   FaultCode_t *fault)
 {
-	MachineState previousState = *state;
+
     if (telemetry == NULL || state == NULL || fault == NULL)
     {
         return;
     }
+    MachineState previousState = *state;
 
     /*
      * IDLE means machine is stopped.
