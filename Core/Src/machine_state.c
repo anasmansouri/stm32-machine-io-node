@@ -36,6 +36,19 @@ int Machine_SetLoadThresholds(int warningThreshold, int faultThreshold)
 
     return 1;
 }
+
+int Machine_SetVibrationThresholds(int warningThreshold, int faultThreshold)
+{
+    if (warningThreshold < 0 || faultThreshold < 0 || warningThreshold >= faultThreshold)
+    {
+        return 0;
+    }
+
+    vibrationWarningThresholdMg = warningThreshold;
+    vibrationFaultThresholdMg = faultThreshold;
+
+    return 1;
+}
 void Machine_ApplyStateOutputs(MachineState state)
 {
     switch (state)

@@ -188,6 +188,32 @@ void Protocol_HandleCommand(const char *cmd,
 					 "ACK:SET_LOAD_THRESHOLD\r\n");
 		}
 	}
+	else if (strncmp(cmd, "SET_VIBRATION_THRESHOLD:", strlen("SET_VIBRATION_THRESHOLD:")) == 0)
+	{
+		int warn = 0;
+		int faultValue = 0;
+
+		int parsed = sscanf(cmd,
+							"SET_VIBRATION_THRESHOLD:WARN=%d;FAULT=%d",
+							&warn,
+							&faultValue);
+
+		if (parsed != 2)
+		{
+			snprintf(response,
+					 responseSize,
+					 "NACK:SET_VIBRATION_THRESHOLD:INVALID_FORMAT\r\n");
+		}else if(Machine_SetVibrationThresholds(warn, faultValue)==0){
+			snprintf(response,responseSize,"NACK:SET_VIBRATION_THRESHOLD:INVALID_RANGE\r\n");
+		}
+		else
+		{
+			Machine_EvaluateRuntimeState(telemetry, state, fault);
+			snprintf(response,
+					 responseSize,
+					 "ACK:SET_VIBRATION_THRESHOLD\r\n");
+		}
+	}
 	else if (strcmp(cmd, "GET_STATUS") == 0)
 	{
 		snprintf(response,

@@ -16,6 +16,7 @@ void Machine_EvaluateRuntimeState(const TelemetryData *telemetry,
                                   FaultCode_t *fault);
 void Machine_ApplyStateOutputs(MachineState state);
 int Machine_SetLoadThresholds(int warningThreshold, int faultThreshold);
+int Machine_SetVibrationThresholds(int warningThreshold, int faultThreshold);
 int Machine_GetLoadWarningThreshold(void);
 int Machine_GetLoadFaultThreshold(void);
 int Machine_GetTempWarningThreshold(void);
