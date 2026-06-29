@@ -238,8 +238,8 @@ The firmware applies physical outputs according to the current machine state.
 Current fan duty constants:
 
 ```text
-FAN_DUTY_IN_RUNNING_STATE = 80
-FAN_DUTY_IN_WARNING_STATE = 40
+FAN_DUTY_IN_RUNNING_STATE = 40
+FAN_DUTY_IN_WARNING_STATE = 80
 ```
 
 ## UART Commands

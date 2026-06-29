@@ -15,9 +15,20 @@ void Fan_Init(TIM_HandleTypeDef *htim, uint32_t channel){
 	fanChannel=channel;
 }
 void Fan_SetDutyPercent(uint8_t dutyPercent){
+
+	if(fanTimer==NULL){
+
+		return;
+	}
+
+	if(dutyPercent>100){
+
+		dutyPercent=100;
+	}
+
 	 uint32_t compare = ((fanTimer->Init.Period + 1) * dutyPercent) / 100;
 	 __HAL_TIM_SET_COMPARE(fanTimer, fanChannel, compare);
 }
 void Fan_Stop(void){
-	   __HAL_TIM_SET_COMPARE(fanTimer, fanChannel, 0);
+	Fan_SetDutyPercent(0);
 }
