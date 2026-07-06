@@ -25,15 +25,20 @@
 
 #include <string.h>
 #include <stdio.h>
-#include <stdlib.h>
+
 #include "shared_types.h"
 #include "telemetry_data.h"
 #include "dht11.h"
 #include "protocol.h"
 #include "load_sensor.h"
 #include "machine_state.h"
+
+#if ENABLE_VIBRATION_SENSOR
 #include "adxl345.h"
 #include "moving_average.h"
+#include <stdlib.h>
+#endif
+
 #include "fan_control.h"
 
 /* USER CODE END Includes */
@@ -45,7 +50,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define ENABLE_VIBRATION_SENSOR 0
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -66,30 +71,30 @@ UART_HandleTypeDef huart2;
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
 const osThreadAttr_t defaultTask_attributes = {
-    .name = "defaultTask",
-    .stack_size = 128 * 4,
-    .priority = (osPriority_t)osPriorityNormal,
+  .name = "defaultTask",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for UartRxTask */
 osThreadId_t UartRxTaskHandle;
 const osThreadAttr_t UartRxTask_attributes = {
-    .name = "UartRxTask",
-    .stack_size = 512 * 4,
-    .priority = (osPriority_t)osPriorityAboveNormal,
+  .name = "UartRxTask",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityAboveNormal,
 };
 /* Definitions for CommandTask */
 osThreadId_t CommandTaskHandle;
 const osThreadAttr_t CommandTask_attributes = {
-    .name = "CommandTask",
-    .stack_size = 512 * 4,
-    .priority = (osPriority_t)osPriorityNormal,
+  .name = "CommandTask",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for TelemetryTask */
 osThreadId_t TelemetryTaskHandle;
 const osThreadAttr_t TelemetryTask_attributes = {
-    .name = "TelemetryTask",
-    .stack_size = 512 * 4,
-    .priority = (osPriority_t)osPriorityLow,
+  .name = "TelemetryTask",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityLow,
 };
 /* USER CODE BEGIN PV */
 osMessageQueueId_t commandQueueHandle;
@@ -111,9 +116,11 @@ FaultCode_t faultCode = FAULT_NONE;
 volatile uint32_t tachPulseCount = 0;
 volatile uint32_t tachPollPulses = 0;
 volatile uint32_t fanRpm = 0;
+#if ENABLE_VIBRATION_SENSOR
 MovingAverageFilter xFilter;
 MovingAverageFilter yFilter;
 MovingAverageFilter zFilter;
+#endif
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -139,9 +146,9 @@ void I2C_Scan(void);
 /* USER CODE END 0 */
 
 /**
- * @brief  The application entry point.
- * @retval int
- */
+  * @brief  The application entry point.
+  * @retval int
+  */
 int main(void)
 {
 
@@ -241,22 +248,22 @@ int main(void)
 }
 
 /**
- * @brief System Clock Configuration
- * @retval None
- */
+  * @brief System Clock Configuration
+  * @retval None
+  */
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
   /** Configure the main internal regulator output voltage
-   */
+  */
   __HAL_RCC_PWR_CLK_ENABLE();
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE3);
 
   /** Initializes the RCC Oscillators according to the specified parameters
-   * in the RCC_OscInitTypeDef structure.
-   */
+  * in the RCC_OscInitTypeDef structure.
+  */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
@@ -273,8 +280,9 @@ void SystemClock_Config(void)
   }
 
   /** Initializes the CPU, AHB and APB buses clocks
-   */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
+  */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
@@ -287,10 +295,10 @@ void SystemClock_Config(void)
 }
 
 /**
- * @brief ADC1 Initialization Function
- * @param None
- * @retval None
- */
+  * @brief ADC1 Initialization Function
+  * @param None
+  * @retval None
+  */
 static void MX_ADC1_Init(void)
 {
 
@@ -305,7 +313,7 @@ static void MX_ADC1_Init(void)
   /* USER CODE END ADC1_Init 1 */
 
   /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
-   */
+  */
   hadc1.Instance = ADC1;
   hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
   hadc1.Init.Resolution = ADC_RESOLUTION_12B;
@@ -324,7 +332,7 @@ static void MX_ADC1_Init(void)
   }
 
   /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
-   */
+  */
   sConfig.Channel = ADC_CHANNEL_0;
   sConfig.Rank = 1;
   sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
@@ -335,13 +343,14 @@ static void MX_ADC1_Init(void)
   /* USER CODE BEGIN ADC1_Init 2 */
 
   /* USER CODE END ADC1_Init 2 */
+
 }
 
 /**
- * @brief I2C1 Initialization Function
- * @param None
- * @retval None
- */
+  * @brief I2C1 Initialization Function
+  * @param None
+  * @retval None
+  */
 static void MX_I2C1_Init(void)
 {
 
@@ -368,13 +377,14 @@ static void MX_I2C1_Init(void)
   /* USER CODE BEGIN I2C1_Init 2 */
 
   /* USER CODE END I2C1_Init 2 */
+
 }
 
 /**
- * @brief TIM2 Initialization Function
- * @param None
- * @retval None
- */
+  * @brief TIM2 Initialization Function
+  * @param None
+  * @retval None
+  */
 static void MX_TIM2_Init(void)
 {
 
@@ -426,13 +436,14 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 2 */
   HAL_TIM_MspPostInit(&htim2);
+
 }
 
 /**
- * @brief USART1 Initialization Function
- * @param None
- * @retval None
- */
+  * @brief USART1 Initialization Function
+  * @param None
+  * @retval None
+  */
 static void MX_USART1_UART_Init(void)
 {
 
@@ -458,13 +469,14 @@ static void MX_USART1_UART_Init(void)
   /* USER CODE BEGIN USART1_Init 2 */
 
   /* USER CODE END USART1_Init 2 */
+
 }
 
 /**
- * @brief USART2 Initialization Function
- * @param None
- * @retval None
- */
+  * @brief USART2 Initialization Function
+  * @param None
+  * @retval None
+  */
 static void MX_USART2_UART_Init(void)
 {
 
@@ -490,13 +502,14 @@ static void MX_USART2_UART_Init(void)
   /* USER CODE BEGIN USART2_Init 2 */
 
   /* USER CODE END USART2_Init 2 */
+
 }
 
 /**
- * @brief GPIO Initialization Function
- * @param None
- * @retval None
- */
+  * @brief GPIO Initialization Function
+  * @param None
+  * @retval None
+  */
 static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
@@ -511,7 +524,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10 | GPIO_PIN_4 | GPIO_PIN_5, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10|GPIO_PIN_4|GPIO_PIN_5, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, GPIO_PIN_SET);
@@ -535,7 +548,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PB10 PB4 PB5 PB6 */
-  GPIO_InitStruct.Pin = GPIO_PIN_10 | GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6;
+  GPIO_InitStruct.Pin = GPIO_PIN_10|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -782,7 +795,7 @@ void StartTelemetryTask(void *argument)
   {
     lastRpmTick = HAL_GetTick();
   }
-  //
+#if ENABLE_VIBRATION_SENSOR
   if (ADXL345_Init(&hi2c1) == HAL_OK)
   {
     HAL_UART_Transmit(&huart2,
@@ -801,6 +814,12 @@ void StartTelemetryTask(void *argument)
   MovingAverage_Init(&xFilter);
   MovingAverage_Init(&yFilter);
   MovingAverage_Init(&zFilter);
+#else
+  HAL_UART_Transmit(&huart2,
+                    (uint8_t *)"Vibration sensor disabled\r\n",
+                    27,
+                    HAL_MAX_DELAY);
+#endif
   Fan_Stop();
   for (;;)
   {
@@ -833,20 +852,22 @@ void StartTelemetryTask(void *argument)
     }
 
     //
+#if ENABLE_VIBRATION_SENSOR
     int16_t x, y, z;
-    char msg[128];
 
     if (ADXL345_ReadXYZ(&hi2c1, &x, &y, &z) == HAL_OK)
     {
       int32_t x_mg = (int32_t)x * 1000 / 256;
       int32_t y_mg = (int32_t)y * 1000 / 256;
       int32_t z_mg = (int32_t)z * 1000 / 256;
+
       int32_t x_avg = MovingAverage_Update(&xFilter, x_mg);
       int32_t y_avg = MovingAverage_Update(&yFilter, y_mg);
       int32_t z_avg = MovingAverage_Update(&zFilter, z_mg);
+
       int32_t vibration_level_mg =
           labs(x_avg) + labs(y_avg) + labs(z_avg);
-      osStatus_t status;
+
       status = osMutexAcquire(telemetryMutex, osWaitForever);
       if (status == osOK)
       {
@@ -857,8 +878,19 @@ void StartTelemetryTask(void *argument)
         osMutexRelease(telemetryMutex);
       }
     }
+#else
+    status = osMutexAcquire(telemetryMutex, osWaitForever);
+    if (status == osOK)
+    {
+      latestTelemetry.vibrationX_mg = 0;
+      latestTelemetry.vibrationY_mg = 0;
+      latestTelemetry.vibrationZ_mg = 0;
+      latestTelemetry.vibration_level_mg = 0;
+      osMutexRelease(telemetryMutex);
+    }
+#endif
 
-    //
+
     int load = LoadSensor_ReadPercent(&hadc1);
     status = osMutexAcquire(telemetryMutex, osWaitForever);
     if (status == osOK)
@@ -915,13 +947,13 @@ void StartTelemetryTask(void *argument)
 }
 
 /**
- * @brief  Period elapsed callback in non blocking mode
- * @note   This function is called  when TIM6 interrupt took place, inside
- * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
- * a global variable "uwTick" used as application time base.
- * @param  htim : TIM handle
- * @retval None
- */
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM6 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
@@ -937,9 +969,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 }
 
 /**
- * @brief  This function is executed in case of error occurrence.
- * @retval None
- */
+  * @brief  This function is executed in case of error occurrence.
+  * @retval None
+  */
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
@@ -952,12 +984,12 @@ void Error_Handler(void)
 }
 #ifdef USE_FULL_ASSERT
 /**
- * @brief  Reports the name of the source file and the source line number
- *         where the assert_param error has occurred.
- * @param  file: pointer to the source file name
- * @param  line: assert_param error line source number
- * @retval None
- */
+  * @brief  Reports the name of the source file and the source line number
+  *         where the assert_param error has occurred.
+  * @param  file: pointer to the source file name
+  * @param  line: assert_param error line source number
+  * @retval None
+  */
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
