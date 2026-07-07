@@ -2,70 +2,114 @@
 
 STM32 firmware for a small industrial-style machine monitoring and control node.
 
-The STM32 reads sensors, measures fan feedback, manages machine state, controls status LEDs and fan PWM output, and communicates with a Raspberry Pi edge gateway over UART.
+The STM32 reads real machine inputs, controls physical outputs, manages machine state and fault logic, measures fan RPM, and communicates with a Raspberry Pi edge gateway over UART.
 
 ## Project Goal
 
-This project demonstrates the microcontroller side of an embedded machine monitoring system.
+This project demonstrates the microcontroller side of an end-to-end embedded monitoring platform.
 
-The STM32 acts as the machine I/O node. It collects telemetry from real inputs, evaluates machine state and fault conditions, controls physical outputs, and exposes the latest machine snapshot to a Raspberry Pi gateway through a simple UART command-response protocol.
+The STM32 acts as the machine I/O node:
 
-## Related Repository
+* Collects telemetry from sensors and inputs
+* Controls fan PWM and status LEDs
+* Measures fan tachometer pulses
+* Handles emergency stop input
+* Evaluates runtime warning/fault conditions
+* Exposes machine status over a UART command-response protocol
+* Integrates with a Raspberry Pi Yocto/ROS2 gateway and Qt/QML HMI
 
-The Raspberry Pi / Yocto / ROS2 gateway used with this firmware is available here:
+## Related Repositories
 
 ```text
-https://github.com/anasmansouri/machine-monitoring-edge-gateway
+Raspberry Pi / Yocto / ROS2 gateway : https://github.com/anasmansouri/machine-monitoring-edge-gateway
+Qt/QML HMI                         : https://github.com/anasmansouri/machine-monitoring-hmi
 ```
 
 ## System Architecture
 
 ```text
-+----------------------+
-| STM32 Machine I/O    |
-|                      |
-| - DHT11 telemetry    |
-| - Load input         |
-| - ADXL345 vibration  |
-| - Fan PWM control    |
-| - Fan RPM feedback   |
-| - Emergency input    |
-| - Machine state      |
-| - Fault handling     |
-| - Status LEDs        |
-| - UART protocol      |
-+----------+-----------+
-           |
-           | USART1 / UART
-           |
-+----------v-----------+
-| Raspberry Pi Gateway |
-| Yocto Linux + ROS2   |
-+----------------------+
++------------------------------+
+| STM32 Machine I/O Node       |
+|                              |
+| Inputs                       |
+| - DHT11 temperature/humidity |
+| - Load input through ADC     |
+| - Fan tachometer feedback    |
+| - Emergency stop input       |
+|                              |
+| Outputs                      |
+| - PWM fan control            |
+| - Red/yellow/green LEDs      |
+|                              |
+| Logic                        |
+| - Machine state management   |
+| - Fault handling             |
+| - UART protocol              |
+| - Optional vibration fields  |
++---------------+--------------+
+                |
+                | USART1 / UART
+                v
++---------------+--------------+
+| Raspberry Pi Edge Gateway    |
+| Yocto Linux + ROS2           |
++---------------+--------------+
+                |
+                | ROS2
+                v
++---------------+--------------+
+| Qt/QML HMI                   |
++------------------------------+
 ```
 
-End-to-end data flow:
+End-to-end telemetry flow:
 
 ```text
-STM32 sensors
+STM32 sensors and state
   -> TelemetryTask
   -> latestTelemetry
   -> GET_STATUS response over USART1
   -> Raspberry Pi edge-gateway
   -> Unix socket JSON
   -> ROS2 /machine/telemetry
+  -> Qt/QML HMI
 ```
 
-## Hardware
+## Current Hardware
+
+Active in the current demo:
 
 * STM32 Nucleo board
 * DHT11 / KY-015 temperature and humidity sensor
-* Load sensor / potentiometer
-* ADXL345 vibration sensor over I2C
-* 4-pin PWM fan with tach/RPM feedback
-* Emergency stop / emergency button input
-* Status LEDs
+* Load input / potentiometer through ADC
+* 4-pin PWM fan
+* Fan tach/RPM feedback
+* Emergency stop input
+* Red/yellow/green status LED module
 * UART connection to Raspberry Pi
+
+Optional / temporarily disabled:
+
+* ADXL345 vibration sensor over I2C
+
+The vibration fields are kept in the UART protocol for compatibility with the gateway and ROS2 message. When the vibration sensor is disabled, the firmware can publish vibration values as `0`.
+
+## Pin Mapping
+
+| Function | STM32 pin | Notes |
+|---|---:|---|
+| Load input | `PA0 / ADC1_CH0` | Analog load value converted to percent |
+| Fan PWM | `PA5 / TIM2_CH1` | 25 kHz PWM fan control |
+| Emergency input | `PC0` | Internal pull-up, active-low input |
+| Fan tach input | `PC1 / EXTI1` | Internal pull-up, falling-edge interrupt |
+| Yellow LED | `PB4` | Warning state output |
+| Green LED | `PB5` | Running state output |
+| Red LED | `PB10` | Fault state output |
+| DHT11 data | `PB6` | Single-wire DHT11 data line |
+| Optional I2C SCL | `PB8 / I2C1_SCL` | ADXL345 if re-enabled |
+| Optional I2C SDA | `PB9 / I2C1_SDA` | ADXL345 if re-enabled |
+| Raspberry Pi UART | `USART1` | Command/response protocol |
+| ST-LINK debug UART | `USART2` | Debug prints over virtual COM port |
 
 ## Main Features
 
@@ -73,17 +117,14 @@ STM32 sensors
 * UART command-response protocol on USART1
 * DHT11 temperature and humidity telemetry
 * Load percentage telemetry from ADC
-* ADXL345 vibration telemetry on X/Y/Z axes
-* Calculated vibration level from filtered X/Y/Z values
-* Moving average filtering for vibration values
-* Fan PWM control using TIM2 Channel 1 on PA5
+* Fan PWM control using TIM2 Channel 1
 * Fan RPM measurement from tach pulses on PC1 / EXTI1
-* Emergency button state reporting and emergency-stop fault handling
+* Emergency button state reporting
 * Machine state management
-* Load, temperature, and vibration threshold handling
+* Load and temperature threshold handling
+* Optional vibration telemetry and threshold handling
 * Fault detection and latched fault behavior
 * State-based status LED and fan control
-* Runtime state evaluation
 * Integration with Raspberry Pi Yocto/ROS2 gateway
 
 ## Firmware Tasks
@@ -96,10 +137,10 @@ CommandTask
   Consumes queued commands, reads the latest telemetry snapshot, calls the protocol handler, and sends the response over USART1.
 
 TelemetryTask
-  Reads sensors, updates latestTelemetry, calculates fan RPM, reads emergency input, and evaluates runtime machine state.
+  Reads inputs, updates latestTelemetry, calculates fan RPM, reads emergency input, and evaluates runtime machine state.
 
 DefaultTask
-  Currently kept minimal. Early hardware debug code is commented out here.
+  Kept minimal. Early hardware debug code can be placed here temporarily but should not contain production logic.
 ```
 
 ## Telemetry Data
@@ -124,37 +165,106 @@ typedef struct
 } TelemetryData;
 ```
 
-## Sensor Handling
+## Sensor and Input Handling
 
 ### DHT11
 
-The firmware periodically reads temperature and humidity. If the read succeeds, `temperature`, `humidity`, and `DHT_OK` are stored in telemetry. If the read fails, `DHT_ERROR` is reported.
+The firmware periodically reads temperature and humidity.
+
+If the read succeeds:
+
+```text
+temperature
+humidity
+DHT_OK
+```
+
+If the read fails:
+
+```text
+DHT_ERROR
+```
 
 ### Load Input
 
-The load input is read through ADC and converted to a percentage value. The load value is used both for telemetry and runtime threshold checks.
+The load input is read through ADC and converted to a percentage value.
 
-### ADXL345 Vibration
+The load value is used for:
 
-The ADXL345 is initialized over I2C inside `TelemetryTask`. The firmware reads raw X/Y/Z acceleration values, converts them to mg, applies a moving average filter, and stores the filtered values in telemetry:
+* Telemetry
+* Warning threshold evaluation
+* Fault threshold evaluation
+
+### Fan RPM
+
+The fan tach signal is connected to `PC1` and counted using `EXTI1` falling-edge interrupts.
+
+The current setup uses the STM32 internal pull-up on `PC1`, so no external pull-up resistor is required for the fan tach line.
+
+RPM calculation:
 
 ```text
-vibrationX_mg
-vibrationY_mg
-vibrationZ_mg
+rpm = (pulses * 60000) / (2 * elapsedMs)
 ```
 
-The firmware also calculates a simple vibration level:
+This assumes a typical 2-pulse-per-revolution PC fan tach signal.
+
+### Emergency Stop
+
+The emergency input is sampled periodically and exposed in telemetry as:
 
 ```text
-vibration_level_mg = abs(x_avg) + abs(y_avg) + abs(z_avg)
+emergency_button
 ```
 
-This value is exported as `VIB_LEVEL` in the UART `GET_STATUS` response and is used by the runtime state machine for vibration warning/fault decisions.
+The emergency stop input is active-low with internal pull-up enabled.
 
-### Fan PWM Control
+If the emergency input is active while starting, resetting, or running, the firmware enters a latched fault state:
 
-The fan PWM signal is generated by `TIM2_CH1` on `PA5`.
+```text
+FAULT_EMERGENCY_STOP
+```
+
+### Optional ADXL345 Vibration Sensor
+
+The ADXL345 vibration feature is currently optional.
+
+Recommended compile-time switch:
+
+```c
+#define ENABLE_VIBRATION_SENSOR 0
+```
+
+Behavior:
+
+```text
+ENABLE_VIBRATION_SENSOR = 0
+  ADXL345 is not required.
+  VIB_X, VIB_Y, VIB_Z and VIB_LEVEL are reported as 0.
+  Gateway, ROS2 and HMI compatibility is preserved.
+
+ENABLE_VIBRATION_SENSOR = 1
+  ADXL345 is initialized over I2C.
+  X/Y/Z acceleration is read and filtered.
+  VIB_LEVEL is calculated and can be used by the state machine.
+```
+
+If the sensor is re-enabled, the expected wiring is:
+
+```text
+ADXL345 VCC -> 3.3V
+ADXL345 GND -> GND
+ADXL345 SCL -> PB8 / I2C1_SCL
+ADXL345 SDA -> PB9 / I2C1_SDA
+ADXL345 CS  -> 3.3V
+ADXL345 SDO -> GND
+```
+
+For reliable I2C operation, use pull-up resistors to 3.3V on SDA and SCL if the module does not already provide them.
+
+## Fan PWM Control
+
+The fan PWM signal is generated by `TIM2_CH1`.
 
 Current PWM timer configuration:
 
@@ -174,32 +284,6 @@ Fan_Stop();
 ```
 
 The machine state layer does not access the timer directly. It calls the fan control API from `Machine_ApplyStateOutputs()`.
-
-### Fan RPM
-
-The fan tach signal is connected to `PC1` and counted using `EXTI1` falling-edge interrupts. A small software filter ignores edges that arrive too quickly.
-
-`TelemetryTask` calculates RPM using elapsed time:
-
-```text
-rpm = (pulses * 60000) / (2 * elapsedMs)
-```
-
-This assumes a typical 2-pulse-per-revolution PC fan tach signal.
-
-### Emergency Button
-
-The emergency input is sampled periodically and exposed in telemetry as:
-
-```text
-emergency_button
-```
-
-If the emergency button is active while starting, resetting, or running, the firmware enters a latched fault state with:
-
-```text
-FAULT_EMERGENCY_STOP
-```
 
 ## Machine States
 
@@ -222,11 +306,9 @@ FAULT_EMERGENCY_STOP
 FAULT_VIBRATION_HIGH
 ```
 
-Some additional fault enum values are reserved for future use, but the list above reflects the faults currently used by the implemented runtime checks.
+`FAULT_VIBRATION_HIGH` is kept for the optional vibration feature. In the current hardware setup, vibration values can be kept at `0`, so this fault will not be triggered by an absent sensor.
 
 ## State-based Outputs
-
-The firmware applies physical outputs according to the current machine state.
 
 | Machine state | LED output | Fan output |
 |---|---|---|
@@ -253,9 +335,12 @@ START_MACHINE
 STOP_MACHINE
 RESET_FAULT
 SET_LOAD_THRESHOLD:WARN=<value>;FAULT=<value>
+SET_VIBRATION_THRESHOLD:WARN=<value>;FAULT=<value>
 ```
 
-Commands are line based. The receiver ignores `\r` and treats `\n` as end of command.
+`SET_VIBRATION_THRESHOLD` is retained for future use when the vibration sensor is re-enabled.
+
+Commands are line based. The receiver ignores `\r` and treats `\n` as the end of a command.
 
 ## UART Responses
 
@@ -267,6 +352,7 @@ ACK:START_MACHINE
 ACK:STOP_MACHINE
 ACK:RESET_FAULT
 ACK:SET_LOAD_THRESHOLD
+ACK:SET_VIBRATION_THRESHOLD
 NACK:UNKNOWN_CMD
 NACK:START_MACHINE:NOT_IDLE
 NACK:START_MACHINE:FAULT_EMERGENCY_STOP
@@ -284,12 +370,33 @@ NACK:RESET_FAULT:FAULT_OVERTEMPERATURE
 NACK:RESET_FAULT:FAULT_VIBRATION_HIGH
 NACK:SET_LOAD_THRESHOLD:INVALID_FORMAT
 NACK:SET_LOAD_THRESHOLD:INVALID_RANGE
+NACK:SET_VIBRATION_THRESHOLD:INVALID_FORMAT
+NACK:SET_VIBRATION_THRESHOLD:INVALID_RANGE
 ```
 
-Example status message:
+Example `GET_STATUS` response with vibration disabled:
 
 ```text
-STATUS:TEMP=27;HUM=62;LOAD=28;VIB_X=374;VIB_Y=-724;VIB_Z=-430;VIB_LEVEL=1528;fanRPM=1200;emergency_button=0;STATE=MACHINE_STATE_IDLE;FAULT=FAULT_NONE;OPERATING_MODE=AUTO_MODE;DHT_STATUS=DHT_OK;LOAD_STATUS=LOAD_OK
+STATUS:TEMP=27;HUM=62;LOAD=28;VIB_X=0;VIB_Y=0;VIB_Z=0;VIB_LEVEL=0;fanRPM=1200;emergency_button=0;STATE=MACHINE_STATE_IDLE;FAULT=FAULT_NONE;OPERATING_MODE=AUTO_MODE;DHT_STATUS=DHT_OK;LOAD_STATUS=LOAD_OK
+```
+
+Field mapping:
+
+```text
+TEMP              Temperature in degrees Celsius
+HUM               Relative humidity in percent
+LOAD              Load input as percentage
+VIB_X             Optional vibration X value in mg, 0 when disabled
+VIB_Y             Optional vibration Y value in mg, 0 when disabled
+VIB_Z             Optional vibration Z value in mg, 0 when disabled
+VIB_LEVEL         Optional vibration level in mg, 0 when disabled
+fanRPM            Fan speed in RPM
+emergency_button  Emergency input state, 0 or 1
+STATE             Current machine state
+FAULT             Current fault code
+OPERATING_MODE    Current operating mode, currently AUTO_MODE
+DHT_STATUS        DHT sensor status
+LOAD_STATUS       Load sensor status
 ```
 
 ## Command Behavior
@@ -308,31 +415,6 @@ ACK:PING
 
 Returns the latest telemetry and machine status.
 
-Response example:
-
-```text
-STATUS:TEMP=27;HUM=62;LOAD=28;VIB_X=374;VIB_Y=-724;VIB_Z=-430;VIB_LEVEL=1528;fanRPM=1200;emergency_button=0;STATE=MACHINE_STATE_IDLE;FAULT=FAULT_NONE;OPERATING_MODE=AUTO_MODE;DHT_STATUS=DHT_OK;LOAD_STATUS=LOAD_OK
-```
-
-Field mapping:
-
-```text
-TEMP              Temperature in degrees Celsius
-HUM               Relative humidity in percent
-LOAD              Load input as percentage
-VIB_X             Filtered ADXL345 X-axis acceleration in mg
-VIB_Y             Filtered ADXL345 Y-axis acceleration in mg
-VIB_Z             Filtered ADXL345 Z-axis acceleration in mg
-VIB_LEVEL         Calculated vibration level in mg
-fanRPM            Fan speed in RPM
-emergency_button  Emergency input state, 0 or 1
-STATE             Current machine state
-FAULT             Current fault code
-OPERATING_MODE    Current operating mode, currently AUTO_MODE
-DHT_STATUS        DHT sensor status
-LOAD_STATUS       Load sensor status
-```
-
 ### START_MACHINE
 
 Starts the machine if the system is safe.
@@ -346,9 +428,7 @@ The command is rejected if:
 * Load sensor error exists
 * Load is above the configured fault threshold
 * Temperature is above the configured fault threshold
-* Vibration level is above the configured fault threshold
-
-If no hard fault is active, the command moves the machine into running mode and the runtime evaluator may immediately select `MACHINE_STATE_RUNNING` or `MACHINE_STATE_WARNING` depending on current warning thresholds.
+* Vibration level is above the configured fault threshold, if vibration is enabled
 
 ### STOP_MACHINE
 
@@ -358,9 +438,9 @@ If the machine is in fault state, the fault remains latched and must be cleared 
 
 ### RESET_FAULT
 
-Clears the fault only if current sensor values are safe.
+Clears the fault only if current input values are safe.
 
-The reset is rejected while any active fault condition still exists, including emergency stop, sensor errors, load fault, temperature fault, or vibration fault.
+The reset is rejected while an active fault condition still exists.
 
 ### SET_LOAD_THRESHOLD
 
@@ -378,11 +458,19 @@ Valid values:
 0 <= warning < fault <= 100
 ```
 
-After changing the load thresholds, the firmware immediately re-evaluates the runtime machine state.
+### SET_VIBRATION_THRESHOLD
+
+Updates warning and fault thresholds for vibration.
+
+Example:
+
+```text
+SET_VIBRATION_THRESHOLD:WARN=2500;FAULT=3000
+```
+
+This command is retained for future use when the vibration sensor is re-enabled.
 
 ## Runtime Behavior
-
-The firmware continuously evaluates the machine state.
 
 Runtime supervision is active while the machine is in:
 
@@ -399,8 +487,8 @@ Fault priority during runtime evaluation:
 3. Load sensor error
 4. Load above fault threshold
 5. Temperature above fault threshold
-6. Vibration level above fault threshold
-7. Warning thresholds for load, temperature, or vibration
+6. Vibration level above fault threshold, if enabled
+7. Warning thresholds
 ```
 
 If a runtime fault condition appears, the state changes to:
@@ -422,118 +510,65 @@ to clear the fault after the system becomes safe again.
 ## UART Settings
 
 ```text
-Baud rate: 115200
-Data bits: 8
-Parity: None
-Stop bits: 1
+Baud rate:    115200
+Data bits:    8
+Parity:       None
+Stop bits:    1
 Flow control: None
 ```
 
-USART usage:
+## Debug UART
+
+Debug output is sent over ST-LINK virtual COM port using USART2.
+
+Open it on Linux with:
+
+```bash
+picocom -b 115200 /dev/ttyACM0
+```
+
+Exit `picocom`:
 
 ```text
-USART1  Protocol UART connected to Raspberry Pi gateway
-USART2  Debug UART through ST-Link virtual COM port
-```
-
-## Integration Test
-
-After flashing the STM32 and booting the Raspberry Pi gateway, the expected chain is:
-
-```text
-STM32 firmware running
-Raspberry Pi edge-gateway sends PING
-STM32 replies ACK:PING
-Raspberry Pi sends GET_STATUS
-STM32 replies STATUS:...
-edge-gateway broadcasts JSON over IPC
-ros2-stm32-bridge publishes /machine/telemetry
-```
-
-On the Raspberry Pi:
-
-```sh
-tail -f /var/log/edge-gateway.log
-```
-
-Expected log pattern:
-
-```text
-PI sent PING
-STM32 REPLIES : ACK:PING
-PI Sent : GET_STATUS
-STM32 REPLIES : STATUS:TEMP=...
-```
-
-Then check ROS2 telemetry on the Raspberry Pi or host:
-
-```sh
-export ROS_DOMAIN_ID=7
-ros2 topic echo /machine/telemetry
-```
-
-Expected ROS2 fields include:
-
-```text
-temperature
-humidity
-load
-fan_rpm
-vibration_x_mg
-vibration_y_mg
-vibration_z_mg
-vibration_level_mg
-emergency_button
-state
-fault
-operating_mode
-dht_status
-load_status
+Ctrl + A, then Ctrl + X
 ```
 
 ## Current Status
 
-Implemented and tested / integrated:
+Working:
 
-* UART handshake with Raspberry Pi using `PING`
-* Periodic `GET_STATUS` telemetry response
-* DHT11 temperature/humidity telemetry
-* Load percentage telemetry
-* ADXL345 vibration telemetry on X/Y/Z axes
-* Vibration level calculation and telemetry field
-* Moving average filtering for vibration values
-* Fan PWM control through `fan_control.c/.h`
-* State-based fan behavior in `Machine_ApplyStateOutputs()`
-* Fan RPM field in telemetry and protocol
-* Emergency button field in telemetry and protocol
-* Emergency stop as a real latched fault condition
-* Vibration warning/fault handling
-* Machine state and fault reporting
-* End-to-end publishing through the Raspberry Pi gateway to ROS2 `/machine/telemetry`
+* FreeRTOS task structure
+* UART receive queue and command task
+* `PING` / `GET_STATUS` / `START_MACHINE` / `STOP_MACHINE` / `RESET_FAULT`
+* Load threshold command
+* Optional vibration threshold command retained
+* DHT11 telemetry
+* Load telemetry
+* Fan PWM control
+* Fan RPM feedback using internal pull-up on PC1
+* Emergency stop fault handling
+* State-based fan and LED outputs
+* Gateway/HMI-compatible UART status format
 
-Planned / possible next steps:
+Current hardware demo focuses on:
 
-* Add configurable vibration thresholds over UART if needed
-* Clean remaining debug code before a polished demo
-* Add a small hardware wiring diagram to the README
+```text
+Temperature
+Humidity
+Load
+Fan RPM
+Emergency stop
+Machine state
+Fault state
+Status LEDs
+Load threshold configuration
+```
 
-## Skills Demonstrated
+## Future Improvements
 
-* STM32 firmware development
-* Embedded C
-* FreeRTOS task design
-* UART communication
-* Command-response protocol design
-* Sensor integration
-* I2C sensor driver integration
-* ADC telemetry
-* GPIO external interrupts
-* PWM fan control and RPM feedback
-* Timer/PWM configuration with TIM2 Channel 1
-* Moving average filtering
-* Fault handling
-* Machine state management
-* GPIO LED control
-* State-based actuator control
-* Integration with Embedded Linux gateway
-* End-to-end STM32 to ROS2 telemetry
+* Re-enable or replace the ADXL345 vibration sensor
+* Move optional vibration code behind a clean compile-time switch
+* Move fan tach logic into a dedicated module
+* Move pin definitions into an `app_config.h` file
+* Add a clean wiring diagram to the documentation
+* Add automated unit tests for protocol parsing and state transitions
