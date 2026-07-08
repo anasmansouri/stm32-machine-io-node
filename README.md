@@ -140,7 +140,7 @@ TelemetryTask
   Reads inputs, updates latestTelemetry, calculates fan RPM, reads emergency input, and evaluates runtime machine state.
 
 DefaultTask
-  Kept minimal. Early hardware debug code can be placed here temporarily but should not contain production logic.
+  Kept minimal.
 ```
 
 ## Telemetry Data
