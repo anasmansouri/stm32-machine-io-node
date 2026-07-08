@@ -563,12 +563,3 @@ Fault state
 Status LEDs
 Load threshold configuration
 ```
-
-## Future Improvements
-
-* Re-enable or replace the ADXL345 vibration sensor
-* Move optional vibration code behind a clean compile-time switch
-* Move fan tach logic into a dedicated module
-* Move pin definitions into an `app_config.h` file
-* Add a clean wiring diagram to the documentation
-* Add automated unit tests for protocol parsing and state transitions
